@@ -32,6 +32,10 @@ All of the implementations expects as input the dataset Indiana University Chest
 The file `radiology_vocabulary_final.xlsx`, now part of the dataset, has been published only recently and is not used in the current implementation. The dataset may be downloaded using the Makefiles provided in this repository.
 
 ## Instructions
+Set up the environment installing the correct libraries. You may find two requirement files for creating a conda environment:
+- `torch_lightning_reqs.txt`: for the PyTorch and the PyTorch-Lightning pipelines
+- `eddl_reqs.txt`: for the EDDL pipeline (not yet published)
+
 In order to run an experiment:
 ```
 make -f Makefile_[eddl|torch|lightning] download
