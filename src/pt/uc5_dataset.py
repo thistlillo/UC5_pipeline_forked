@@ -20,7 +20,7 @@ import text.reports as reports
 from text.encoding import SimpleCollator, StandardCollator
 
 from utils.misc import Timer
-import pt.utils as pt_utils
+import utils.misc as mu
 
 # class ToTensor(object):
 #     """Convert ndarrays in sample to Tensors."""
@@ -119,7 +119,8 @@ class Uc5ImgDataset(Dataset):
         labels = self.tsv.loc[img_id, "one_hot_labels"]  # self.encode_labels(self.tsv.loc[img_id, "labels"])
         return img, torch.tensor(labels)
 
-    # ONE SENTENCE WITH MAX_TOKENS TOKENS
+    # REMOVE THIS METHOD
+    # ONE SENTENCE WITH MAX_TOKENS TOKENS 
     def getitem_simple(self, img_id):
         img, lab, e_text = self.load_id(img_id)
         img = np.array(img, copy=False)
@@ -151,7 +152,7 @@ class Uc5ImgDataset(Dataset):
         text_col = "enc_" + self.conf["text_column"]
         data = self.tsv.loc[img_fn, ["labels", text_col]]
      
-        labels = pt_utils.encode_labels_one_hot(
+        labels = mu.encode_labels_one_hot(
                 [int(l) for l in data["labels"].split(reports.list_sep)], 
                 n_classes = self.n_classes,
                 l1normalization=self.l1normalization)
@@ -225,7 +226,7 @@ def main(in_tsv,
     n_classes = 100
     l1normalization = True
     tsv["one_hot_labels"] = tsv["labels"].apply(
-            lambda x: pt_utils.encode_labels_one_hot(
+            lambda x: mu.encode_labels_one_hot(
                 [int(l) for l in x.split(reports.list_sep)], 
                 n_classes,
                 l1normalization=l1normalization)

@@ -7,6 +7,8 @@ import os
 from posixpath import join
 import time
 
+import numpy as np
+from posixpath import join
 
 def filename_from_path(path, keep_extension=True):
     base = os.path.basename(path)
@@ -54,3 +56,16 @@ class Timer:
         if self.msg is not None:
             s = f"'{self.msg}' took {humanize.precisedelta(self.interval)}"
             print(s)
+
+
+def encode_labels_one_hot(labels, n_classes, l1normalization=False):
+    out = np.zeros((n_classes,), dtype=float)
+    n_labels = len(labels)
+    out[labels] = 1.0
+    # l1normalization should be applied with a CrossEntropyLoss
+    if l1normalization:
+        out = out / n_labels
+    return out
+#<
+
+    
