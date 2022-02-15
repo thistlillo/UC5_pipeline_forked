@@ -13,7 +13,7 @@ import random
 import text.reports as reports
 # from text.encoding import SimpleCollator, StandardCollator
 
-from data_partitioning import DataPartitioner
+from utils.data_partitioning import DataPartitioner
 
 
 def main(in_tsv,

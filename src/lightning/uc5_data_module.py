@@ -7,7 +7,7 @@ from posixpath import join
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from data_partitioning import DataPartitioner
+from utils.data_partitioning import DataPartitioner
 import text.reports as reports
 from text.encoding import SimpleCollator, StandardCollator
 from pt.uc5_dataset import Uc5ImgDataset

@@ -8,7 +8,10 @@
 # A_pipeline:
 
 
-THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
+# THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
+THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
+$(warning running makefile {THIS_MAKEFILE})
+
 PYTHON = python3
 
 RANDOM_SEED = 100
@@ -30,7 +33,6 @@ EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED
 
 TSV_FLD = $(BASE_OUT_FLD)/tsv_lightning
 RESULTS_FLD = $(EXP_FLD)/results
-
 
 # *** *** D O W N L O A D
 $(BASE_DS_FLD)/NLMCXR_png.tgz: 
@@ -186,11 +188,12 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 
 split_data: $(SPLIT_WITNESS)
 
-LIGHTNING_OUT_FN = $(EXP_FLD)/$(MODEL_FN)_pl.pt 
-$(LIGHTNING_OUT_FN): $(ENC_WITNESS) C01_train_lightning.py
+LIGHTNING_OUT_FN = $(EXP_FLD)/model_pl.pt
+
+$(LIGHTNING_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
 	@cp $(THIS_MAKEFILE) $(EXP_FLD)
-	$(PYTHON) C01_train_lightning.py --out_fn=$(MODEL_FN)  \
-	--only_images=False --load_data_split=False \
+	$(PYTHON) C01_train_lightning.py --out_fn=$@ \
+	--only_images=False --load_data_split=True \
 	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
 	--term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) --seed=$(RANDOM_SEED) \
 	--shuffle_seed=$(SHUFFLE_SEED) --n_epochs=$(N_EPOCHS) --batch_size=10 \
@@ -205,9 +208,14 @@ train : $(LIGHTNING_OUT_FN)
 
 C_pipeline: | split_data train
 
-# add checkpoint
 C_pipeline_clean:
-	rm -fr $(EXP_FLD)/
+	rm -f $(LIGHTNING_OUT_FN)
+	rm -f $(EXP_FLD)/validation_best.pt
+	rm -f $(EXP_FLD)/$(THIS_MAKEFILE)
+	rm -fr $(EXP_FLD)/checkpoints
+	rm -f $(SPLIT_WITNESS)
+	rm -f $(addprefix $(EXP_FLD)/, test_ids.txt train_ids.txt valid_ids.txt)
+	rmdir $(EXP_FLD)
 
 
 # *** ***
@@ -217,7 +225,7 @@ all: train
 clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean
 
 # ***  *** 
-.PHONY: clean download process_raw_dataset reports_tsv \
+.PHONY: all clean download process_raw_dataset reports_tsv \
 	A_pipeline A_pipeline_clean \
 	clean_text encode B_pipeline B_pipeline_clean \
 	split_data train C_pipeline C_pipeline_clean

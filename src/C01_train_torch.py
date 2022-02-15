@@ -7,6 +7,7 @@ import humanize as H
 import json
 
 import numpy as np
+import os
 import pandas as pd
 import pickle
 from posixpath import join
@@ -18,7 +19,7 @@ from torch.utils.data import DataLoader
 
 from pt.uc5_dataset import Uc5ImgDataset
 from pt.uc5_model import Uc5Model, compute_loss, compute_bleu
-from data_partitioning import create_partitions, load_data_split
+from utils.data_partitioning import create_partitions, load_data_split
 import text.reports as reports
 import time
 
@@ -143,7 +144,7 @@ def pipeline(config):
     timings = []
     start_time_t = time.perf_counter()
     print(f"training is starting: {n_epochs} epochs, {bs} batch size, {len(train_dl)} batches, validation every {check_val_every} epochs")
-    
+    last_val_best = None
     for ei in range(n_epochs):
         loss_e = 0
         
@@ -182,9 +183,14 @@ def pipeline(config):
             
             loss_v = loss_v/len(val_dl)
             if loss_v < best_val_loss:
+                # remove previous checkpoint
+                if last_val_best:
+                    os.remove(last_val_best)
+
                 best_val_loss = loss_v
                 path = join(args.exp_fld, f"checkpoint_e{ei}_l{loss_v:.02f}.pt")
                 torch.save(model.state_dict(), path)
+                last_val_best = path
                 print(f"checkpoint saved at { path } for best validation loss {loss_v:.3f}")
 
             print(f"epoch {ei+1}/{n_epochs}, validation loss: {loss_v:.3f}")
@@ -224,13 +230,21 @@ def pipeline(config):
 
     #> T E S T / predict
     start_time_p = time.perf_counter()
+
+    print("test 1/2: model at last epoch")
     print("running predict(), moving model to cpu")
     model = model.to("cpu")
-    
     bleu = evaluate_bleu(model, test_dl)
-    print(f"predictions, BLEU score: {bleu:.3f}")
-    print(f"predictions, time elpased: {H.precisedelta(time.perf_counter() - start_time_p)}")
-    run["test/bleu"] = bleu
+    print(f"predictions 1/2, BLEU score: {bleu:.3f}")
+    print(f"predictions 1/2, time elpased: {H.precisedelta(time.perf_counter() - start_time_p)}")
+    run["test/last_epoch/bleu"] = bleu
+
+    print("test 2/2: model with best validation lost")
+    model = Uc5Model(config)
+    model.load_state_dict(torch.load(last_val_best))
+    bleu = evaluate_bleu(model, test_dl)
+    print(f"predictions 2/2, BLEU score: {bleu:.3f}")
+    print(f"predictions 2/2, time elpased: {H.precisedelta(time.perf_counter() - start_time_p)}")
     #< test
     
     print(f"done, total time elapsed: {H.precisedelta(time.perf_counter() - start_time_t)}")

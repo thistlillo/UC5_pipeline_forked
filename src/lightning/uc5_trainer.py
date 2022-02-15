@@ -8,6 +8,7 @@ from posixpath import join
 from pytorch_lightning.loggers import NeptuneLogger
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
+import torch
 
 from lightning.uc5_data_module import Uc5DataModule
 from lightning.uc5_model_lightning import Uc5Model
@@ -105,14 +106,25 @@ class Uc5Trainer:
         #<
 
         #> test
-        print("Test 1/2: testing model at last epoch- calling test(.)")
+        print("test 1/2: testing model at last epoch- calling test(.)")
         trainer.test(model, datamodule=data_module)
         
-        print("Test 2/2: testing best model on the validation set - calling test(.)")
+        torch.save(model.state_dict(), self.conf["out_fn"])
+        print(f"model at last epoch saved: {self.conf['out_fn']}")
+
+        print("test 2/2: testing best model on the validation set - calling test(.)")
         model = Uc5Model.load_from_checkpoint(checkpoint_callback.best_model_path, conf=self.conf)
         trainer.test(model, datamodule=data_module)
+
+        best_on_val_fn = join(self.conf["exp_fld"], "validation_best.pt")
+        torch.save(model.state_dict(), best_on_val_fn)
+        print(f"best model on validation saved in pytorch format at: {best_on_val_fn}")
         #<
         
+        
+    
+
+
         print("test completed")
         print("done.")
     #< train

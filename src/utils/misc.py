@@ -10,7 +10,6 @@ import time
 import numpy as np
 from posixpath import join
 
-
 def filename_from_path(path, keep_extension=True):
     base = os.path.basename(path)
     if keep_extension:
@@ -68,3 +67,5 @@ def encode_labels_one_hot(labels, n_classes, l1normalization=False):
         out = out / n_labels
     return out
 #<
+
+    
