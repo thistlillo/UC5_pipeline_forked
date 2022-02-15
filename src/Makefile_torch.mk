@@ -26,11 +26,13 @@ TEXT_FLD = $(BASE_DS_FLD)/text
 REPORTS = reports
 
 BASE_OUT_FLD = ../experiments_torch
-EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)/$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
+EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
 
-TSV_FLD = $(BASE_OUT_FLD)/tsv_lightning
+TSV_FLD = $(BASE_OUT_FLD)/tsv_torch
 RESULTS_FLD = $(EXP_FLD)/results
 
+$(shell mkdir -p $(TSV_FLD))
+$(shell mkdir -p $(EXP_FLD))
 
 # *** *** D O W N L O A D
 $(BASE_DS_FLD)/NLMCXR_png.tgz: 
@@ -67,11 +69,9 @@ VERBOSITY_A = False
 # - REPORTS_RAW_TSV is saved into $(TSV_FLD)
 # - REPORTS_TSV is saved into $(EXP_FLD) since it applies experimentantion-specific filters on the raw values
 $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
-	@mkdir -p $(TSV_FLD)
 	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ $(VERBOSITY_A) --stats
 
 $(EXP_FLD)/$(REPORTS).tsv: $(REPORTS_RAW_TSV) A01_prepare_tsv.py
-	@mkdir -p $(EXP_FLD)
 	$(PYTHON) A01_prepare_tsv.py --out_file=$@ --raw_tsv=$(REPORTS_RAW_TSV) \
 		--n_terms=$(KEEP_N_TERMS) --n_terms_per_rep=$(N_TERMS_PER_REP) \
 		--keep_no_indexing=True --keep_n_imgs=$(KEEP_N_IMGS) --verbose=$(VERBOSITY_A)
@@ -204,22 +204,19 @@ $(TORCH_OUT_FN): $(ENC_WITNESS) C01_train_torch.py
 
 train: $(TORCH_OUT_FN)
 
-
-
-C_pipeline: | split_data train_torch
+C_pipeline: | split_data train
 
 C_pipeline_clean:
-	rm -f $(EXP_FLD)/$(MODEL_FN).pt
-	rm -f $(EXP_FLD)/train_ids.txt
-	rm -f $(EXP_FLD)/valid_ids.txt
-	rm -f $(EXP_FLD)/test_ids.txt
-	rm -f $(EXP_FLD)/.split_witness.tmp
-	rm -f $(EXP_FLD)/.split_witness
+	rm -fr $(EXP_FLD)/
 
+# *** ***
+all: train
 
+# *** ***
+clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean
 
 # ***  *** 
-.PHONY: download process_raw_dataset reports_tsv \
+.PHONY: all download process_raw_dataset reports_tsv \
 	A_pipeline A_pipeline_clean \
 	clean_text encode B_pipeline B_pipeline_clean \
-	split_data train_torch C_pipeline C_pipeline_clean
+	split_data train C_pipeline C_pipeline_clean

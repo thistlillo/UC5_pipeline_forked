@@ -26,7 +26,7 @@ TEXT_FLD = $(BASE_DS_FLD)/text
 REPORTS = reports
 
 BASE_OUT_FLD = ../experiments_lightning
-EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)/$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
+EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
 
 TSV_FLD = $(BASE_OUT_FLD)/tsv_lightning
 RESULTS_FLD = $(EXP_FLD)/results
@@ -186,25 +186,6 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 
 split_data: $(SPLIT_WITNESS)
 
-$(warning ${VERBOSITY_C})
-TORCH_OUT_FN=$(EXP_FLD)/$(MODEL_FN).pt___
-$(TORCH_OUT_FN): $(ENC_WITNESS) C01_train_torch.py
-	@cp $(THIS_MAKEFILE) $(EXP_FLD)
-	$(PYTHON) C01_train_torch.py --out_fn=$@  \
-	--only_images=False --load_data_split=False \
-	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
-	--term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) --seed=$(RANDOM_SEED) \
-	--shuffle_seed=$(SHUFFLE_SEED) --n_epochs=$(N_EPOCHS) --batch_size=$(BATCH_SIZE) \
-	--last_batch=$(LAST_BATCH) --train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
-	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
-	--device=gpu --gpu_id=2 \
-	--loader_threads=0 \
-	--check_val_every=50 \
-	--single_channel_cnn=True \
-	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
-
-train_torch: $(TORCH_OUT_FN)
-
 LIGHTNING_OUT_FN = $(EXP_FLD)/$(MODEL_FN)_pl.pt 
 $(LIGHTNING_OUT_FN): $(ENC_WITNESS) C01_train_lightning.py
 	@cp $(THIS_MAKEFILE) $(EXP_FLD)
@@ -218,25 +199,25 @@ $(LIGHTNING_OUT_FN): $(ENC_WITNESS) C01_train_lightning.py
 	--single_channel_cnn=True \
 	--accelerator=gpu --gpus=[${GPU_ID}]  \
 	--loader_threads=0 \
-	--verbose=$(VERBOSITY_C) --debug-$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
+	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
 
 train : $(LIGHTNING_OUT_FN)
 
-C_pipeline: | split_data train_lightning
+C_pipeline: | split_data train
 
 # add checkpoint
 C_pipeline_clean:
-	rm -f $(EXP_FLD)/$(MODEL_FN)_pl.pt
-	rm -f $(EXP_FLD)/train_ids.txt
-	rm -f $(EXP_FLD)/valid_ids.txt
-	rm -f $(EXP_FLD)/test_ids.txt
-	rm -f $(EXP_FLD)/.split_witness.tmp
-	rm -f $(EXP_FLD)/.split_witness
+	rm -fr $(EXP_FLD)/
 
 
+# *** ***
+all: train
+
+# *** ***
+clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean
 
 # ***  *** 
-.PHONY: download process_raw_dataset reports_tsv \
+.PHONY: clean download process_raw_dataset reports_tsv \
 	A_pipeline A_pipeline_clean \
 	clean_text encode B_pipeline B_pipeline_clean \
-	split_data train_lightning C_pipeline C_pipeline_clean
+	split_data train C_pipeline C_pipeline_clean

@@ -1,3 +1,7 @@
+# 
+# UC5, DeepHealth
+# Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
+#
 import fire
 import numpy as np
 import pandas as pd
@@ -26,6 +30,7 @@ def main(in_tsv,
          batch_size = 32,         # batch size
          last_batch = "random",   # how to fill the last batch (EDDL requires the batches to be all of the same size)
          n_epochs = 50,           # training epochs
+         check_val_every_n_epoch = 25, 
          n_sentences = 5,         # number of sentences to generate
          n_tokens = 10,           # maximum number of tokens per sentence
          sgl_lr = 0.1,           # sgd learning rate and momentum
@@ -48,13 +53,14 @@ def main(in_tsv,
          loader_threads = 1,
          accelerator="gpu",
          gpus=1,
+         single_channel_cnn=False,
          strategy=None,
          amp_level=None,
          amp_backend=None,
+         precision=None,
          verbose = False,         # 
          debug = False,           # more verbosity
          dev = False,             # dev limit number of epochs and batches,
-         dryrun = False,          # currently UNused: if True do not save any file
          remote_log = False):     # remote log on neptune.ai
     
     config = locals()
@@ -64,7 +70,8 @@ def main(in_tsv,
 
     uc5trainer = Uc5Trainer(config)
     uc5trainer.train()
+#< main()
+ 
 # --------------------------
-
 if __name__ == "__main__":
     fire.Fire(main)

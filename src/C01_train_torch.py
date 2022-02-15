@@ -17,9 +17,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from pt.uc5_dataset import Uc5ImgDataset
-import pt.utils as pt_utils
 from pt.uc5_model import Uc5Model, compute_loss, compute_bleu
-
+from data_partitioning import create_partitions, load_data_split
 import text.reports as reports
 import time
 
@@ -62,7 +61,7 @@ def pipeline(config):
     tsv = pd.read_csv(args.in_tsv, sep=reports.csv_sep, na_filter=False).set_index("filename", inplace=False, drop=False)
     run["dataset"].track_files(args.in_tsv)
     
-    train_ids, val_ids, test_ids = pt_utils.load_data_split(args.exp_fld) if args.load_data_split else pt_utils.create_partitions(args, tsv)
+    train_ids, val_ids, test_ids = load_data_split(args.exp_fld) if args.load_data_split else create_partitions(args, tsv)
     with open(join(args.exp_fld, "lab2index.json"), "r") as fin:
         label2index = json.load(fin)
         n_classes = len(label2index)

@@ -7,11 +7,11 @@ from posixpath import join
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from partitioner import DataPartitioner
+from data_partitioning import DataPartitioner
 import text.reports as reports
 from text.encoding import SimpleCollator, StandardCollator
 from pt.uc5_dataset import Uc5ImgDataset
-import pt.pt_utils as pt_utils
+import utils.misc as mu
 
 class Uc5DataModule(LightningDataModule):
 
@@ -44,7 +44,7 @@ class Uc5DataModule(LightningDataModule):
         
         # add this column, that will be read and served by the uc5_dataset receiving the view of this tsv
         self.tsv["one_hot_labels"] = self.tsv["labels"].apply(
-            lambda x: pt_utils.encode_labels_one_hot(
+            lambda x: mu.encode_labels_one_hot(
                 [int(l) for l in x.split(reports.list_sep)], 
                 n_classes = self.n_classes,
                 l1normalization=self.l1normalization)
@@ -121,6 +121,7 @@ class Uc5DataModule(LightningDataModule):
 
         train_dataset = Uc5ImgDataset(
             tsv=self._filter_tsv_for_split(self.train_ids),
+            n_classes=self.n_classes,
             conf=self.conf,
             version=None)
         print(f"train dataloader using {self.conf['loader_threads']} loader threads")
@@ -146,6 +147,7 @@ class Uc5DataModule(LightningDataModule):
         
         val_dataset = Uc5ImgDataset(
             tsv=self._filter_tsv_for_split(self.val_ids),
+            n_classes=self.n_classes,
             conf=self.conf,
             version=None)
         print(f"val dataloader using {self.conf['loader_threads']} loader threads")
@@ -172,6 +174,7 @@ class Uc5DataModule(LightningDataModule):
                 
         test_dataset = Uc5ImgDataset(
             tsv=self._filter_tsv_for_split(self.test_ids),
+            n_classes=self.n_classes,
             conf=self.conf,
             version=None)
         print(f"test dataloader using {self.conf['loader_threads']} loader threads")
