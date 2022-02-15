@@ -1,3 +1,6 @@
-# UC5
+# UC5 - DeepHealth
+## Use Case 5: Deep Image Annotation
 
-UC5 - 2022
+Repository for the Use Case 4 "Deep Image Annotation"
+
+## Torch pipeline
