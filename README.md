@@ -38,3 +38,10 @@ make -f Makefile_[eddl|torch|lightning] download
 make -f Makefile_[eddl|torch|lightning] all
 ```
 **If you decide to download the dataset via the makefile, it strongly advised to check the paths specified in the makefile.**
+
+**IMPORTANT**
+Experiments are tracked remotely using the platform Neptune.ai (https://neptune.ai/).
+If you do not have an account, please set the variable REMOTE_LOG to False in the makefile.
+
+**NOTE**
+The makefile (.mk) is automatically copied in the output folder of the experiment.
