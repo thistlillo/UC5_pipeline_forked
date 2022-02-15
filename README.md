@@ -19,7 +19,8 @@ The repository contains three implementations of the UC5 model based on the thre
 - **EDDLL**
 - **PyTorch**
 - **PyTorch-Lightning**
-With PyTorch-Lightning library it is relatively easy to train and test the model on multiple GPUs, multiple nodes, and with different level of precision.
+
+With the PyTorch-Lightning library it is relatively easy to train and test the model on multiple GPUs, multiple nodes, and with different level of precision or automatic mixed precision.
 
 Pipelines A and B are shared among the three implementations. Library-specific files are organized in the subfolders of `src/eddl`, `src/pt` and `src/lightning` for, respectively, EDDL, PyTorch and PyTorch-Lightning.
 
