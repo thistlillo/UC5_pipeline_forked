@@ -1,6 +1,9 @@
-# UC5 - DeepHealth
-## Use Case 5: Deep Image Annotation
+## UC5 "Deep Image Annotation", DeepHealth
 
 Repository for the Use Case 4 "Deep Image Annotation"
 
-## Torch pipeline
+### EDDL pipeline
+
+### PyTorch pipeline
+
+### PyTorch-Lightning pipeline
