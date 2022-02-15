@@ -1,2 +1,3 @@
-# UC5_pipeline
-Repository for the Use Case 5 "Deep Image Annotation"
+# UC5
+
+UC5 - 2022

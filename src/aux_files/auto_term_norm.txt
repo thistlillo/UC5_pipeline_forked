@@ -1,0 +1,49 @@
+aneurysms: aneurysm
+aortic diseases: aortic disease
+artifacts: artefact
+atelectases: atelectasis
+atheroscleroses: atherosclerosis
+bronchiectases: bronchiectasis
+bronchiolitides: bronchiolitis
+bullae: bulla
+catheters: catheter
+central venous catheters: central venous catheter
+cervical spine fusion: cervical spinal fusion
+cholelithiases: cholelithiasis
+cysts: cyst
+defibrillators: defibrillator
+diaphragms: diaphragm
+dilatation: dilation
+edemas: edema
+emphysemas: emphysema
+fibroses: fibrosis
+fractures: fracture
+gall stone: gallstones
+granulomas: granuloma
+hematomas: hematoma
+hernias: hernia
+hiatus hernia: hiatal hernia
+histoplasmoses: histoplasmosis
+humeral fractures: humeral fracture
+in dwelling catheters: in-dwelling catheter
+kyphoses: kyphosis
+lungs: lung disease
+lung: lung disease
+lung diseases: lung disease
+lymph nodes: lymph node
+lymphomas: lymphoma
+mycoplasma pneumoniae: mycoplasma pneumonia
+osteophytes: osteophyte
+osteoporoses: osteoporosis
+pleural diseases: pleural disease
+pleural effusions: pleural effusion
+pulmonary fibroses: pulmonary fibrosis
+ribs: rib
+rib fractures: rib fracture
+sarcoidoses: sarcoidosis
+scars: scar
+scolioses: scoliosis
+stents: stent
+tipss: tips
+tuberculoses: tuberculosis
+vascular calcifications: vascular calcification
