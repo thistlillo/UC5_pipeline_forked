@@ -38,7 +38,6 @@ class Uc5ImgDataset(Dataset):
     VERBOSE_DEBUG = 2
 
 
-
     def __init__(self, tsv, n_classes, conf, l1normalization=True, version="simple"):
         super().__init__()
         self.tsv = tsv
@@ -67,27 +66,29 @@ class Uc5ImgDataset(Dataset):
 
         self.from_disk_transform = self._get_from_disk_transform()
         
-    # >init
+    #< init
 
     def _get_from_disk_transform(self):
 
         m, s = ([0.485], [0.229]) if self.conf["single_channel_cnn"] else \
                 ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
   
-        T =  transforms.Compose([
+        T = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=m,
-                                std=s),
+            transforms.Normalize(mean=m, std=s),
             transforms.Resize(300),
             transforms.RandomCrop(224)
         ])
         return T
+    #<
 
     def shuffle(self):
         self.random.shuffle(self.stage_ids)
+    #<
 
     def __len__(self):
         return len(self.tsv)
+    #<
 
     def __getitem__(self, idx):  # idx: int position
         if torch.is_tensor(idx):  # REMOVE
@@ -103,6 +104,7 @@ class Uc5ImgDataset(Dataset):
             return self.getitem_simple(filename)
         else:
             return self.getitem_complex(filename)
+    #<    
         
     def get_image(self, img_id):
         fn = join(self.img_fld, img_id)
@@ -112,12 +114,14 @@ class Uc5ImgDataset(Dataset):
         if self.from_disk_transform:
             img = self.from_disk_transform(img)
         return img
-        
+    #<
+         
     # XXX rename all get_image to get_batch
     def getitem_only_images(self, img_id):
         img = self.get_image(img_id)
         labels = self.tsv.loc[img_id, "one_hot_labels"]  # self.encode_labels(self.tsv.loc[img_id, "labels"])
         return img, torch.tensor(labels)
+    #<
 
     # REMOVE THIS METHOD
     # ONE SENTENCE WITH MAX_TOKENS TOKENS 
@@ -127,7 +131,7 @@ class Uc5ImgDataset(Dataset):
         e_text = np.squeeze(e_text)
         probs = torch.tensor([1, 0])
         return img, lab, e_text, probs
-
+    #<
 
     def getitem_complex(self, img_id):
         img, lab, text = self.load_id(img_id)
@@ -146,6 +150,7 @@ class Uc5ImgDataset(Dataset):
         probs = torch.tensor(probs)
         # img = np.array(img, copy=False)
         return img, lab, text, probs
+    #<
 
     def load_id(self, img_fn):
         # image names
@@ -165,7 +170,7 @@ class Uc5ImgDataset(Dataset):
         text = self.encode_text(text)
         
         return img, torch.tensor(labels), torch.tensor(text)
-
+    #<
 
     def encode_text(self, text):
         c = self.conf
@@ -179,14 +184,9 @@ class Uc5ImgDataset(Dataset):
         # out = torch.tensor(collated_text)
         
         return collated_text
+    #<
 
-    # def encode_text_simple(self, text):
-    #     # c = self.conf
-    #     enc = self.vocab.simple_encode(text, self.sentence_length)
-    #     return torch.tensor(enc)  # , dtype=float)
-
-
-
+# --------------------------------------------------
 # USED ONLY FOR TESTING
 def main(in_tsv,
          exp_fld,

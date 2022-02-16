@@ -1,3 +1,7 @@
+# 
+# UC5, DeepHealth
+# Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
+#
 import json
 import numpy as np
 import os
@@ -49,31 +53,9 @@ class Uc5DataModule(LightningDataModule):
                 n_classes = self.n_classes,
                 l1normalization=self.l1normalization)
                 )
-
-        #   this new column contains the encoding of the labels, ready for training
-        # self.tsv["int_labels"] = self.tsv["labels"].apply(lambda x: self.encode_labels([int(l) for l in x.split(reports.list_sep)]))
-
-        # self.vocab = None
-        # with open(join(self.exp_fld, "vocab.pickle"), "rb") as fin:
-        #     self.vocab = pickle.load(fin)
-        # # < section: load files
-
-        # # section: set text encoding
-        # self.n_sentences = int(conf["n_sentences"])
-        # self.sentence_length = int(conf["n_tokens"])
-        # if self.version == "simple":
-        #     self.n_sentences = 1
-        #     self.collator = SimpleCollator()
-        # else:
-        #     self.collator = StandardCollator()       
-        # # < section: set text encoding
-
-
-        # < init
+    #< init
     
-    
-
-    # section: partitions
+    #> section: partitions
     def _set_partitions(self):
         if self.conf["load_data_split"]:
             return self._load_data_split()
@@ -101,20 +83,14 @@ class Uc5DataModule(LightningDataModule):
         c["verbose"] = self.conf["verbose"]
         partitioner = DataPartitioner(c, self.tsv)   
         return partitioner.partition()
-    # < section: partitions
+    #< section: partitions
 
-    # section: uc5 datasets
-    def _filter_tsv_for_split(self, ids):
-        #print("loading split")
-        #print(f"length of ids: {len(ids)}")
+    def _filter_tsv_for_split(self, ids):  # train, val or test ids
         subdf = self.tsv[self.tsv.filename.isin(ids)]  # .reset_index(drop=True)
-        #print(subdf.columns)
-        #print(subdf.shape)
-        return subdf
-        
-    # < section: uc5 datasets
+        return subdf        
+    #< section: uc5 datasets
 
-    # section: pt-lightning methods
+    #> section: pt-lightning methods
     def train_dataloader(self):
         if self.conf["verbose"]:
             print("returning train_dataloader")
@@ -125,21 +101,8 @@ class Uc5DataModule(LightningDataModule):
             conf=self.conf,
             version=None)
         print(f"train dataloader using {self.conf['loader_threads']} loader threads")
-        return DataLoader(train_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"]) # , 
-
-    # def train_dataloader(self):
-    #     if self.conf["verbose"]:
-    #         print("returning train_dataloader")
-
-    #     if self.train_dl is not None:
-    #         return self.train_dl
-        
-    #     train_dataset = Uc5ImgDataset(
-    #         tsv=self._filter_tsv_for_split(self.train_ids),
-    #         conf=self.conf,
-    #         version=None)
-    #     self.train_dl = DataLoader(train_dataset, batch_size=self.conf["batch_size"]) # , num_workers=self.conf["loader_threads"]
-    #     return self.train_dl
+        return DataLoader(train_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"])
+    #<
         
     def val_dataloader(self):
         if self.conf["verbose"]:
@@ -152,21 +115,7 @@ class Uc5DataModule(LightningDataModule):
             version=None)
         print(f"val dataloader using {self.conf['loader_threads']} loader threads")
         return DataLoader(val_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"]) # , num_workers=self.conf["loader_threads"]
-    
-
-    # def val_dataloader(self):
-    #     if self.conf["verbose"]:
-    #         print("returning val_dataloader")
-        
-    #     if self.val_dl is not None:
-    #         return self.val_dl
-
-    #     val_dataset = Uc5ImgDataset(
-    #         tsv=self._filter_tsv_for_split(self.val_ids),
-    #         conf=self.conf,
-    #         version=None)
-    #     self.val_dl = DataLoader(val_dataset, batch_size=self.conf["batch_size"]) # , num_workers=self.conf["loader_threads"]
-    #     return self.val_dl
+    #<
 
     def test_dataloader(self):
         if self.conf["verbose"]:
@@ -179,24 +128,11 @@ class Uc5DataModule(LightningDataModule):
             version=None)
         print(f"test dataloader using {self.conf['loader_threads']} loader threads")
         return DataLoader(test_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"]) # , num_workers=self.conf["loader_threads"]
-    
-    # def test_dataloader(self):
-    #     if self.conf["verbose"]:
-    #         print("returning test_dataloader")
-        
-    #     if self.test_dl is not None:
-    #         return self.test_dl
-        
-    #     test_dataset = Uc5ImgDataset(
-    #         tsv=self._filter_tsv_for_split(self.test_ids),
-    #         conf=self.conf,
-    #         version=None)
-    #     self.test_dl = DataLoader(test_dataset, batch_size=self.conf["batch_size"]) # , num_workers=self.conf["loader_threads"]
-    #     return self.test_dl
-
+    #<    
     # section: pt-lightning methods
 
-# USED ONLY FOR TESTING
+# --------------------------------------------------
+# main USED ONLY FOR TESTING
 def main(in_tsv,
          exp_fld,
          img_fld,

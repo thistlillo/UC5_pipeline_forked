@@ -133,6 +133,10 @@ def main(in_file,
     tsv = pd.read_csv(config["in_file"], sep=reports.csv_sep, na_filter=False)
     print(tsv.columns)
     print(f"read {config['in_file']}, lines: {len(tsv)}")
+    if len(tsv) == 0:
+        print(f"EMPTY INPUT FILE: {config['in_file']}")
+        exit(1)
+        
     print(f"image labels from column: {config['term_column']}")
     print(f"texts from column: {config['text_column']}")
     print(f"vocabulary size: {config['vocab_size']}")

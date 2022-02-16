@@ -54,7 +54,7 @@ class Timer:
 
         self.interval = self.end - self.start
         if self.msg is not None:
-            s = f"'{self.msg}' took {humanize.precisedelta(self.interval)}"
+            s = f"'{self.msg}' took {humanize.precisedelta(self.interval)}, secs: {self.interval}"
             print(s)
 
 

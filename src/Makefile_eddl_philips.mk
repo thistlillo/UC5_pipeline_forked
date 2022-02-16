@@ -9,16 +9,18 @@
 
 
 # THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
-$(warning running makefile {THIS_MAKEFILE})PYTHON = python3
+THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
+LIBRARY = lightning
+$(warning using library $(LIBRARY))
 
 PYTHON = python3
+
 RANDOM_SEED = 100
 SHUFFLE_SEED = 2000
 
 # EXPERIMENT AND MODEL IDENTIFIERS
-EXP_NAME = torch_std
-MODEL = torch_std
+EXP_NAME = $(LIBRARY)_phi
+MODEL = $(LIBRARY)_phi
 
 # FOLDERS & FILENAMES
 BASE_DS_FLD = ../data
@@ -27,13 +29,11 @@ TEXT_FLD = $(BASE_DS_FLD)/text
 
 REPORTS = reports
 
-BASE_OUT_FLD = ../experiments_torch
+BASE_OUT_FLD = ../experiments_$(LIBRARY)
 EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
 
-TSV_FLD = $(BASE_OUT_FLD)/tsv_torch
+TSV_FLD = $(BASE_OUT_FLD)/tsv_phi_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results
-
-
 
 # *** *** D O W N L O A D
 $(BASE_DS_FLD)/NLMCXR_png.tgz: 
@@ -70,12 +70,11 @@ VERBOSITY_A = False
 # - REPORTS_RAW_TSV is saved into $(TSV_FLD)
 # - REPORTS_TSV is saved into $(EXP_FLD) since it applies experimentantion-specific filters on the raw values
 $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
-	@cp $(THIS_MAKEFILE) $(EXP_FLD)
-	$(shell mkdir -p $(TSV_FLD))
+	@mkdir -p $(TSV_FLD)
 	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ $(VERBOSITY_A) --stats
 
 $(EXP_FLD)/$(REPORTS).tsv: $(REPORTS_RAW_TSV) A01_prepare_tsv.py
-	$(shell mkdir -p $(EXP_FLD))
+	@mkdir -p $(EXP_FLD)
 	$(PYTHON) A01_prepare_tsv.py --out_file=$@ --raw_tsv=$(REPORTS_RAW_TSV) \
 		--n_terms=$(KEEP_N_TERMS) --n_terms_per_rep=$(N_TERMS_PER_REP) \
 		--keep_no_indexing=True --keep_n_imgs=$(KEEP_N_IMGS) --verbose=$(VERBOSITY_A)
@@ -190,33 +189,27 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 
 split_data: $(SPLIT_WITNESS)
 
-TORCH_OUT_FN=$(EXP_FLD)/model.pt
-$(TORCH_OUT_FN): $(ENC_WITNESS) C01_train_torch.py
-	$(PYTHON) C01_train_torch.py --out_fn=$@  \
-	--only_images=False --load_data_split=False \
-	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
-	--term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) --seed=$(RANDOM_SEED) \
-	--shuffle_seed=$(SHUFFLE_SEED) --n_epochs=$(N_EPOCHS) --batch_size=$(BATCH_SIZE) \
-	--last_batch=$(LAST_BATCH) --train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
-	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
-	--device=gpu --gpu_id=2 \
-	--loader_threads=0 \
-	--check_val_every=50 \
-	--single_channel_cnn=True \
-	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
+MODEL_OUT_FN = $(EXP_FLD)/model_pl.pt
 
-train: $(TORCH_OUT_FN)
+$(MODEL_OUT_FN): $(SPLIT_WITNESS)
+	@cp $(THIS_MAKEFILE) $(EXP_FLD)
+	$(warning define target)
+
+train : $(MODEL_OUT_FN)	
+	$(warning misssing recipe in train )
 
 C_pipeline: | split_data train
 
 C_pipeline_clean:
-	rm -f $(TORCH_OUT_FN)
+	$(warning check recipe)
+	rm -f $(MODEL_OUT_FN)
 	rm -f $(EXP_FLD)/validation_best.pt
 	rm -f $(EXP_FLD)/$(THIS_MAKEFILE)
-	rm -f $(EXP_FLD)/checkpoint_e*_l*.pt
+	rm -fr $(EXP_FLD)/checkpoints
 	rm -f $(SPLIT_WITNESS)
 	rm -f $(addprefix $(EXP_FLD)/, test_ids.txt train_ids.txt valid_ids.txt)
 	rmdir $(EXP_FLD)
+
 
 # *** ***
 all: train

@@ -9,8 +9,9 @@
 
 
 # THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
-$(warning running makefile {THIS_MAKEFILE})
+THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
+LIBRARY = lightning
+$(warning using library $(LIBRARY))
 
 PYTHON = python3
 
@@ -18,8 +19,8 @@ RANDOM_SEED = 100
 SHUFFLE_SEED = 2000
 
 # EXPERIMENT AND MODEL IDENTIFIERS
-EXP_NAME = lightning_std
-MODEL = lightning_std
+EXP_NAME = $(LIBRARY)_std
+MODEL = $(LIBRARY)_base
 
 # FOLDERS & FILENAMES
 BASE_DS_FLD = ../data
@@ -28,10 +29,10 @@ TEXT_FLD = $(BASE_DS_FLD)/text
 
 REPORTS = reports
 
-BASE_OUT_FLD = ../experiments_lightning
+BASE_OUT_FLD = ../experiments_$(LIBRARY)
 EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
 
-TSV_FLD = $(BASE_OUT_FLD)/tsv_lightning
+TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results
 
 # *** *** D O W N L O A D
@@ -69,6 +70,7 @@ VERBOSITY_A = False
 # - REPORTS_RAW_TSV is saved into $(TSV_FLD)
 # - REPORTS_TSV is saved into $(EXP_FLD) since it applies experimentantion-specific filters on the raw values
 $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
+	@cp $(THIS_MAKEFILE) $(EXP_FLD)
 	@mkdir -p $(TSV_FLD)
 	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ $(VERBOSITY_A) --stats
 
@@ -188,10 +190,9 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 
 split_data: $(SPLIT_WITNESS)
 
-LIGHTNING_OUT_FN = $(EXP_FLD)/model_pl.pt
+MODEL_OUT_FN = $(EXP_FLD)/model_pl.pt
 
-$(LIGHTNING_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
-	@cp $(THIS_MAKEFILE) $(EXP_FLD)
+$(MODEL_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
 	$(PYTHON) C01_train_lightning.py --out_fn=$@ \
 	--only_images=False --load_data_split=True \
 	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
@@ -204,12 +205,12 @@ $(LIGHTNING_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
 	--loader_threads=0 \
 	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
 
-train : $(LIGHTNING_OUT_FN)
+train : $(MODEL_OUT_FN)
 
 C_pipeline: | split_data train
 
 C_pipeline_clean:
-	rm -f $(LIGHTNING_OUT_FN)
+	rm -f $(MODEL_OUT_FN)
 	rm -f $(EXP_FLD)/validation_best.pt
 	rm -f $(EXP_FLD)/$(THIS_MAKEFILE)
 	rm -fr $(EXP_FLD)/checkpoints

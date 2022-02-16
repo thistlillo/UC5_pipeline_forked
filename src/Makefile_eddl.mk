@@ -9,31 +9,38 @@
 
 
 # THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
-$(warning running makefile {THIS_MAKEFILE})PYTHON = python3
-
+THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
 PYTHON = python3
-RANDOM_SEED = 100
-SHUFFLE_SEED = 2000
 
+## -----------------------------------------------
+LIBRARY = eddl
+$(warning using library $(LIBRARY))
+
+# -----------------------------------------------
 # EXPERIMENT AND MODEL IDENTIFIERS
-EXP_NAME = torch_std
-MODEL = torch_std
+EXP_NAME = $(LIBRARY)_phi_std
+MODEL = $(LIBRARY)_phi
 
+# -----------------------------------------------
 # FOLDERS & FILENAMES
 BASE_DS_FLD = ../data
 IMAGE_FLD = $(BASE_DS_FLD)/image
 TEXT_FLD = $(BASE_DS_FLD)/text
 
-REPORTS = reports
+## -----------------------------------------------
+RANDOM_SEED = 100
+SHUFFLE_SEED = 2000
 
-BASE_OUT_FLD = ../experiments_torch
+
+# -----------------------------------------------
+BASE_OUT_FLD = ../experiments_$(LIBRARY)
 EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
 
-TSV_FLD = $(BASE_OUT_FLD)/tsv_torch
+TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results
 
-
+# prefix
+REPORTS = reports_phi
 
 # *** *** D O W N L O A D
 $(BASE_DS_FLD)/NLMCXR_png.tgz: 
@@ -66,20 +73,22 @@ PREPROC_IMG_SIZE = 224
 
 VERBOSITY_A = False
 
+# -----------------------------------------------
 # NOTICE: 
 # - REPORTS_RAW_TSV is saved into $(TSV_FLD)
 # - REPORTS_TSV is saved into $(EXP_FLD) since it applies experimentantion-specific filters on the raw values
 $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
-	@cp $(THIS_MAKEFILE) $(EXP_FLD)
-	$(shell mkdir -p $(TSV_FLD))
+	@mkdir -p $(TSV_FLD)
 	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ $(VERBOSITY_A) --stats
 
+# -----------------------------------------------
 $(EXP_FLD)/$(REPORTS).tsv: $(REPORTS_RAW_TSV) A01_prepare_tsv.py
-	$(shell mkdir -p $(EXP_FLD))
+	@mkdir -p $(EXP_FLD)
 	$(PYTHON) A01_prepare_tsv.py --out_file=$@ --raw_tsv=$(REPORTS_RAW_TSV) \
 		--n_terms=$(KEEP_N_TERMS) --n_terms_per_rep=$(N_TERMS_PER_REP) \
 		--keep_no_indexing=True --keep_n_imgs=$(KEEP_N_IMGS) --verbose=$(VERBOSITY_A)
 
+# -----------------------------------------------
 process_raw_dataset : $(REPORTS_RAW_TSV)
 
 reports_tsv:  $(REPORTS_TSV)
@@ -113,10 +122,10 @@ TEXT_COL = text
 VOCABULARY_SIZE = 1000
 MIN_WORD_FREQ = 2
 MAX_SENTENCE_LENTH = 12
-
 # IMG_SIZE: input to convolutional neural network
 IMG_SIZE = 224
 
+# -----------------------------------------------
 VERBOSITY_B = False
 $(REPORTS_CLEAN): $(REPORTS_TSV) B00_clean_text.py
 	$(PYTHON) B00_clean_text.py --out_file=$@ --in_file=$(REPORTS_TSV) --out_fld=$(EXP_FLD) \
@@ -124,6 +133,7 @@ $(REPORTS_CLEAN): $(REPORTS_TSV) B00_clean_text.py
 
 clean_text: $(REPORTS_CLEAN)
 
+# -----------------------------------------------
 # using a witness, not the best solution but clear enough. See https://www.gnu.org/software/automake/manual/html_node/Multiple-Outputs.html
 # needed for using GNU make with version < 4.3. With GNU Make versions >= 4.3 it is possible to use "grouped targets".
 ENC_WITNESS = $(EXP_FLD)/.enc_witness
@@ -136,6 +146,7 @@ $(ENC_WITNESS): $(REPORTS_CLEAN) B01_encode_data.py
 
 encode: $(ENC_WITNESS)
 
+# -----------------------------------------------
 B_pipeline: | clean_text encode
 
 B_pipeline_clean:
@@ -152,32 +163,8 @@ B_pipeline_clean:
 #
 # *** P I P E L I N E   C ***
 #
-# parameters
-N_EPOCHS=10000
-BATCH_SIZE = 32
-TRAIN_PERCENTAGE = 0.7
-VALIDATION_PERCENTAGE = 0.1
-# LAST_BATCH in {drop, random}: if |last batch|<BATCH_SIZE, drop -> do not use the examples, random->choose the missing example randomly 
-LAST_BATCH = drop
 
-# model
-EMB_SIZE = 512
-LSTM_SIZE = 512
-# single_channel_cnn: if set, the cnn will receive 1-channel images. Otherwise, 3-channel (RGB) images
-#   The three channels are not averaged, but only the first (red:0) channel is kept.
-# When using a pre-trained network, subsequent training has not been tested: the 3-channel input layer is substituted by a new one
-SINGLE_CHANNEL_CNN = True
-
-# text related
-MAX_TOKENS = 12
-MAX_SENTENCES = 5
-
-VERBOSITY_C = False
-DEBUG_C = False
-DEV_MODE_C = True
-GPU_ID = 1
-REMOTE_LOG=True
-
+# -----------------------------------------------
 SPLIT_WITNESS = $(EXP_FLD)/.split_witness
 $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 	$(warning C00_split.py produces multiple output files. Using witness ${SPLIT_WITNESS} in Makefile)
@@ -190,42 +177,88 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 
 split_data: $(SPLIT_WITNESS)
 
-TORCH_OUT_FN=$(EXP_FLD)/model.pt
-$(TORCH_OUT_FN): $(ENC_WITNESS) C01_train_torch.py
-	$(PYTHON) C01_train_torch.py --out_fn=$@  \
-	--only_images=False --load_data_split=False \
-	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
-	--term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) --seed=$(RANDOM_SEED) \
-	--shuffle_seed=$(SHUFFLE_SEED) --n_epochs=$(N_EPOCHS) --batch_size=$(BATCH_SIZE) \
-	--last_batch=$(LAST_BATCH) --train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
-	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
-	--device=gpu --gpu_id=2 \
-	--loader_threads=0 \
-	--check_val_every=50 \
-	--single_channel_cnn=True \
-	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
+# -----------------------------------------------
+# softmax or sigmoid: LEAVE SOFTMAX
+CNN_OUT_LAYER=softmax
+CNN_MODEL_OUT_FN = $(EXP_FLD)/cnn_$(CNN_OUT_LAYER)_eddl.onnx
 
-train: $(TORCH_OUT_FN)
+CHECK_VAL_EVERY=5
+BATCH_SIZE = 32
+EDDL_CS = gpu
+EDDL_CS_MEM = full_mem
+EMB_SIZE = 512
+GPU_ID=[0,1,0,0]
+# LAST_BATCH in {drop, random}: if |last batch|<BATCH_SIZE, 
+# 		drop -> do not use the examples, random->choose the missing example randomly 
+LAST_BATCH = random
+LR = 0.01
+LSTM_SIZE = 512
+MAX_SENTENCES = 5
+MAX_TOKENS = 12
+MOMENTUM = 0.9
+N_EPOCHS=10000
+OPTIMIZER=adam
+PATIENCE_KICK_IN=200
+# PATIENCE TRESH corresponds to the number of validation steps, i.e. epochs = PATIENCE_THRESH * CHECK_VAL_EVERY
+PATIENCE_THRESH=4
+TRAIN_PERCENTAGE = 0.7
+VALIDATION_PERCENTAGE = 0.1
+
+VERBOSITY_C = False
+DEBUG_C = True
+DEV_MODE_C = True
+
+REMOTE_LOG_CNN = True
+REMOTE_LOG_RNN = True
+
+# C01_cnn_module.py
+$(CNN_MODEL_OUT_FN): $(SPLIT_WITNESS) C01_1_cnn_module.py eurodll/cnn_module.py
+	$(warning training target is $@)
+	$(PYTHON) C01_1_cnn_module.py train  --out_fn=$@ \
+		--preload_images=False --preproc_images=$(PREPROC_IMGS) \
+		--cnn_out_layer=$(CNN_OUT_LAYER) \
+		--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  \
+		--img_fld=$(IMAGE_FLD) --text_column=$(TEXT_COL) \
+		--seed=$(RANDOM_SEED) --shuffle_seed=$(SHUFFLE_SEED) \
+		--n_epochs=$(N_EPOCHS) --batch_size=$(BATCH_SIZE) --last_batch=$(LAST_BATCH) \
+		--train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
+		--lstm_size=512 --emb_size=512 \
+		--n_tokens=$(MAX_TOKENS) --n_sentences=1 \
+		--patience=$(PATIENCE_THRESH) --patience_kick_in=$(PATIENCE_KICK_IN) \
+		--optimizer=$(OPTIMIZER) --lr=$(LR) --momentum=$(MOMENTUM) \
+		--eddl_cs=$(EDDL_CS) --eddl_cs_mem=$(EDDL_CS_MEM) --gpu_id=$(GPU_ID) \
+		--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG_CNN)
+
+train_cnn: $(CNN_MODEL_OUT_FN)
+
+# -----------------------------------------------
+
+
+train: $(MODEL_OUT_FN)	
+	$(warning misssing recipe in train )
 
 C_pipeline: | split_data train
 
 C_pipeline_clean:
-	rm -f $(TORCH_OUT_FN)
-	rm -f $(EXP_FLD)/validation_best.pt
-	rm -f $(EXP_FLD)/$(THIS_MAKEFILE)
-	rm -f $(EXP_FLD)/checkpoint_e*_l*.pt
+	$(warning check recipe)
+	rm -f $(CNN_MODEL_OUT_FN)
+	rm -f $(EXP_FLD)/cnn_checkpoint.onnx
+# rm -f $(EXP_FLD)/validation_best.pt
+# rm -f $(EXP_FLD)/$(THIS_MAKEFILE)
+# rm -fr $(EXP_FLD)/checkpoints
 	rm -f $(SPLIT_WITNESS)
 	rm -f $(addprefix $(EXP_FLD)/, test_ids.txt train_ids.txt valid_ids.txt)
-	rmdir $(EXP_FLD)
+# rmdir $(EXP_FLD)
+
 
 # *** ***
-all: train
+all: train_cnn
 
 # *** ***
 clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean
-
+	rmdir $(EXP_FLD)
 # ***  *** 
 .PHONY: all clean download process_raw_dataset reports_tsv \
 	A_pipeline A_pipeline_clean \
 	clean_text encode B_pipeline B_pipeline_clean \
-	split_data train C_pipeline C_pipeline_clean
+	split_data train_cnn C_pipeline C_pipeline_clean
