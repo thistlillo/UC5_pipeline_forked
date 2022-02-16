@@ -165,6 +165,7 @@ class EddlCnnModule:
         if self.conf["dev"]:
             batch_ids = [0, len(ds)-1]  # first and last batch only
             n_epochs = 2  # 2 epochs only
+            check_val_every = 1
 
         early_stop = False  # set to True if the patience threshold is reached during training
         start_train_t = time.perf_counter()
@@ -173,10 +174,9 @@ class EddlCnnModule:
             eddl.reset_loss(cnn)
             t1 = time.perf_counter()
             ds.shuffle()
-
+            valid_loss, valid_acc = 0, 0
             for bi in batch_ids:
-                with Timer(f"loading batch {bi}") as _:
-                    images, labels, _ = ds[bi]
+                images, labels, _ = ds[bi]
                 X = Tensor.fromarray(images)
                 Y = Tensor.fromarray(labels)
                 eddl.train_batch(cnn, [X], [Y])

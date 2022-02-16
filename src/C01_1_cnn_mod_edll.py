@@ -19,6 +19,7 @@ def train(in_tsv,
          batch_size = 32,
          last_batch = "random",
          n_epochs = 50,
+         check_val_every = 1,
          n_sentences = 5,  # ignored when using dataset version "simple"
          n_tokens = 10,
          # max_tokens = 17,  # used by dataset version "simple". In that case, max_sentences and max_sentence_length are ignored
