@@ -17,6 +17,7 @@ def train(in_tsv,
          batch_size = 32,
          last_batch = "random",
          n_epochs = 50,
+         check_val_every = 10,
          n_sentences = 5,  # ignored when using dataset version "simple"
          n_tokens = 10,
          # max_tokens = 17,  # used by dataset version "simple". In that case, max_sentences and max_sentence_length are ignored
@@ -41,7 +42,8 @@ def train(in_tsv,
     config=locals()
     rec_mdl = EddlRecurrentModule(config)
     rec_mdl.train()
-    rec_mdl.save()
+    rec_mdl.predict()
+    rec_mdl.save()  # save ok, but cannot be loaded (error)
 #< train
 
 
@@ -80,8 +82,10 @@ def test(in_tsv,
          debug = False,
          dev = False):
     config=locals()
+    print("NOT IMPLEMENTED - USE TRAIN")
+    exit(1)
     rec_mdl = EddlRecurrentModule(config)
-    rec_mdl.test()
+    rec_mdl.predict()
 
 
 

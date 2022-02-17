@@ -109,6 +109,19 @@ class EddlCnnModule:
         return cnn
     #<
 
+    def build_cnn(self, cnn=None):
+        if cnn is None:
+            cnn = self.create_cnn()
+        #<
+        loss_str = self.get_loss_name()
+        optimizer = self.get_optimizer()
+        print(f"using loss {loss_str} (output layer: {self.conf.cnn_out_layer})")
+        eddl.build(cnn, optimizer, [loss_str], ["accuracy"], self.comp_serv(), init_weights=False)  # losses, metrics, 
+
+        print(f"cnn built: resnet18")
+        return cnn
+    #<
+
     def load_model(self, filename=None):
         filename = filename or self.conf.load_file
         cnn = eddl.import_net_from_onnx_file(filename)
@@ -131,19 +144,6 @@ class EddlCnnModule:
             return eddl.sgd(lr=0.001)
         else:
             assert False
-    #<
-
-    def build_cnn(self, cnn=None):
-        if cnn is None:
-            cnn = self.create_cnn()
-        #<
-        loss_str = self.get_loss_name()
-        optimizer = self.get_optimizer()
-        print(f"using loss {loss_str} (output layer: {self.conf.cnn_out_layer})")
-        eddl.build(cnn, optimizer, [loss_str], ["accuracy"], self.comp_serv(), init_weights=False)  # losses, metrics, 
-
-        print(f"cnn built: resnet18")
-        return cnn
     #<
 
     def get_network(self):
@@ -171,9 +171,11 @@ class EddlCnnModule:
         start_train_t = time.perf_counter()
         for ei in range(n_epochs):
             print(f"{ei+1} / {n_epochs} starting, patience: {self.patience_run}/{self.patience} [kick-in: {self.patience_kick_in}]")
-            eddl.reset_loss(cnn)
-            t1 = time.perf_counter()
+            
             ds.shuffle()
+            eddl.reset_loss(cnn)
+
+            t1 = time.perf_counter()
             valid_loss, valid_acc = 0, 0
             for bi in batch_ids:
                 images, labels, _ = ds[bi]
@@ -209,13 +211,13 @@ class EddlCnnModule:
             val_start = time.perf_counter()
             valid_loss, valid_acc = self.validation()
             val_end = time.perf_counter()
+            ds.set_stage("train")
             #<
 
             self.run["validation/epoch/loss"].log(valid_loss)
             self.run["validation/epoch/acc"].log(valid_acc)
             self.run["time/validation/epoch"].log(val_end-val_start)
             self.run["time/train+val/epoch"].log(val_end - t1)
-
             self.run["time/training/epoch"].log(epoch_end- t1)
 
             #< patience and checkpoint
@@ -275,7 +277,6 @@ class EddlCnnModule:
         loss = loss / len(ds)
         acc = acc / len(ds)
 
-        ds.set_stage("train")
         return loss, acc
     #<
 

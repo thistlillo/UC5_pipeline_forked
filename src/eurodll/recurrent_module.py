@@ -51,6 +51,18 @@ class EddlRecurrentModule:
         return run 
     #<
 
+    def comp_serv(self, eddl_cs=None, eddl_mem=None):
+        eddl_cs = eddl_cs or self.conf.eddl_cs
+        eddl_mem = eddl_mem or self.conf.eddl_cs_mem
+
+        if self.verbose:
+            print("creating computing service:")
+            print(f"computing service: {eddl_cs}")
+            print(f"memory: {eddl_mem}")
+        
+        return eddl.CS_GPU(g=self.conf.gpu_id, mem=self.conf.eddl_cs_mem) if eddl_cs == 'gpu' else eddl.CS_CPU(th=2, mem=eddl_mem)
+    #< 
+
     def load_cnn(self):
         filename = self.conf.cnn_file
         cnn = eddl.import_net_from_onnx_file(filename)
@@ -58,7 +70,8 @@ class EddlRecurrentModule:
         print(f"cnn input shape {cnn.layers[0].input.shape}")
         print(f"cnn output shape {cnn.layers[-1].output.shape}")
         
-        eddl.build(cnn, eddl.adam(0.01), ["softmax_cross_entropy"], ["accuracy"], self.comp_serv(), init_weights=False)
+        eddl.build(cnn, eddl.adam(0.01), ["softmax_cross_entropy"], ["accuracy"], # used only in forwarding
+            self.comp_serv(), init_weights=False)
         print("cnn model built successfully")
         for name in [_.name for _ in cnn.layers]:
             eddl.setTrainable(cnn, name, False)
@@ -72,18 +85,6 @@ class EddlRecurrentModule:
         onnx = eddl.import_net_from_onnx_file(self.conf.load_file) 
         return self.build_model(onnx)
     #<
-
-    def comp_serv(self, eddl_cs=None, eddl_mem=None):
-        eddl_cs = eddl_cs or self.conf.eddl_cs
-        eddl_mem = eddl_mem or self.conf.eddl_cs_mem
-
-        if self.verbose:
-            print("creating computing service:")
-            print(f"computing service: {eddl_cs}")
-            print(f"memory: {eddl_mem}")
-        
-        return eddl.CS_GPU(g=self.conf.gpu_id, mem=self.conf.eddl_cs_mem) if eddl_cs == 'gpu' else eddl.CS_CPU(th=2, mem=eddl_mem)
-    #< 
 
     def create_model(self, for_training=True):
         # cnn
@@ -100,29 +101,29 @@ class EddlRecurrentModule:
 
         # INPUT: visual features
         cnn_top_in = eddl.Input([visual_dim], name="in_visual_features")
-        visual_features = eddl.RandomUniform(eddl.Dense(cnn_top_in, cnn_top_in.output.shape[1], name="visual_features") )
-        alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1]), name="alpha_v")  # missing sentence component
+        visual_features = eddl.RandomUniform(eddl.Dense(cnn_top_in, cnn_top_in.output.shape[1], name="visual_features"), -0.05, 0.05)
+        alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1], name="dense_alpha_v"), name="alpha_v")  # missing sentence component
         v_att = eddl.Mult(alpha_v, visual_features)
         print(f"layer visual features: {visual_features.output.shape}")
 
         # INPUT: semantic features
         cnn_out_in = eddl.Input([semantic_dim], name="in_semantic_features")
         semantic_features = eddl.RandomUniform(eddl.Embedding(eddl.ReduceArgMax(cnn_out_in, [0]), cnn_out_in.output.shape[1], 1, self.conf["emb_size"], name="semantic_features"), -0.05, 0.05)
-        alpha_s = eddl.Softmax(eddl.Dense(eddl.Tanh(semantic_features), self.conf["emb_size"]), name="alpha_s")  # missing sentence component cnn_out.output.shape[1]
+        alpha_s = eddl.Softmax(eddl.Dense(eddl.Tanh(semantic_features), self.conf["emb_size"], name="dense_alpha_s"), name="alpha_s")  # missing sentence component cnn_out.output.shape[1]
         s_att = eddl.Mult(alpha_s, semantic_features)
         print(f"layer semantic features: {semantic_features.output.shape}")
 
         # co-attention
         features = eddl.Concat([v_att, s_att], name="co_att_in")
-        context = eddl.Dense(features, self.conf["emb_size"], name="co_attention")
+        context = eddl.RandomUniform(eddl.Dense(features, self.conf["emb_size"], name="co_attention"), -0.1, 0.1)
         print(f"layer coattention: {context.output.shape}")
 
         # lstm
         word_in = eddl.Input([vs])
         to_lstm = eddl.ReduceArgMax(word_in, [0])
-        to_lstm = eddl.RandomUniform(eddl.Embedding(to_lstm, vs, 1, self.conf["emb_size"], mask_zeros=True, name="word_embeddings"), -0.05, +0.05)
+        to_lstm = eddl.RandomUniform(eddl.Embedding(to_lstm, vs, 1, self.conf["emb_size"], mask_zeros=True, name="word_embs"), -0.05, +0.05)
         to_lstm = eddl.Concat([to_lstm, context])
-        lstm = eddl.LSTM(to_lstm, self.conf["lstm_size"], mask_zeros=True, bidirectional=False, name="lstm")
+        lstm = eddl.LSTM(to_lstm, self.conf["lstm_size"], mask_zeros=True, bidirectional=False, name="lstm_cell")
 
         # *** *** *** *** *** I M P O R T A N T
         if for_training:
@@ -133,11 +134,11 @@ class EddlRecurrentModule:
             lstm.isrecurrent = False
         
             
-        out_lstm = eddl.Softmax(eddl.Dense(lstm, vs, name="top_dense"), name="rnn_out")
+        out_lstm = eddl.Softmax(eddl.Dense(lstm, vs, name="out_dense"), name="rnn_out")
         print(f"layer lstm: {out_lstm.output.shape}")
 
         # model
-        rnn = eddl.Model([cnn_top_in, cnn_out_in, word_in], [out_lstm])
+        rnn = eddl.Model([cnn_top_in, cnn_out_in], [out_lstm])
         eddl.summary(rnn)
         return rnn
     #<
@@ -185,7 +186,7 @@ class EddlRecurrentModule:
 
         if self.conf["dev"]:
             batch_ids = [0, len(ds)-1]  # first and last batch only
-            n_epochs = 2  # 2 epochs only
+            n_epochs = 1
         #<
         
         # self.run["params/activation"] = self.activation_name
@@ -202,6 +203,7 @@ class EddlRecurrentModule:
             t1 = time.perf_counter()
             for bi in batch_ids:
                 images, _, texts = ds[bi]
+                
                 X = Tensor.fromarray(images)  # , dev=DEV_GPU)
                 
                 cnn.forward([X])
@@ -210,7 +212,7 @@ class EddlRecurrentModule:
 
                 Y = Tensor.fromarray(texts)
                 Y = Tensor.onehot(Y, self.voc_size)
-                # print(f"cnn foward, X={X.shape}, Y={Y.shape}")
+                
                 eddl.train_batch(rnn, [cnn_visual, cnn_semantic], [Y])
 
                 loss = eddl.get_losses(rnn)[0]
@@ -251,6 +253,8 @@ class EddlRecurrentModule:
     #<
 
     def validation(self):
+        print("*** VALIDATION ***")
+        return 0, 0
         ds = self.ds
         cnn = self.cnn
         cnn_out = eddl.getLayer(cnn, "cnn_out")
@@ -281,6 +285,7 @@ class EddlRecurrentModule:
     #<
 
     def test(self):
+        # NOT REALLY IMPLEMENTED
         ds = self.ds
         ds.set_stage("test")
         batch_ids = list(range(len(ds)))
@@ -308,4 +313,105 @@ class EddlRecurrentModule:
         print(f"model saved, location: {filename}")
         return filename
     #<
+
+    def build_model_prediction(self):
+        args = self.conf
+        cnn_top = eddl.getLayer(self.cnn, "top")
+        cnn_out = eddl.getLayer(self.cnn, "cnn_out")
+        visual_dim = cnn_top.output.shape[1]
+        semantic_dim = cnn_out.output.shape[1]
+
+        cnn_top_in = eddl.Input([visual_dim], name="in_visual_features")
+        visual_features = eddl.Dense(cnn_top_in, cnn_top_in.output.shape[1], name="visual_features")
+        alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1], name="dense_alpha_v"), name="alpha_v")  # missing sentence component
+        v_att = eddl.Mult(alpha_v, visual_features)
+
+        cnn_out_in = eddl.Input([semantic_dim], name="in_semantic_features")
+        semantic_features = eddl.Embedding(eddl.ReduceArgMax(cnn_out_in, [0]), cnn_out_in.output.shape[1], 1, self.conf["emb_size"], name="semantic_features")
+        alpha_s = eddl.Softmax(eddl.Dense(eddl.Tanh(semantic_features), self.conf["emb_size"], name="dense_alpha_s"), name="alpha_s")  # missing sentence component cnn_out.output.shape[1]
+        s_att = eddl.Mult(alpha_s, semantic_features)
+
+        features = eddl.Concat([v_att, s_att], name="co_att_in")
+        context = eddl.Dense(features, self.conf["emb_size"], name="co_attention")
+
+
+
+        lstm_in = eddl.Input([self.voc_size])
+        lstate = eddl.States([2, args.lstm_size])
+        
+        to_lstm = eddl.ReduceArgMax(lstm_in, [0])  # word index
+        to_lstm = eddl.Embedding(to_lstm, self.voc_size, 1, args.emb_size, name="word_embs")
+        to_lstm = eddl.Concat([to_lstm, context])
+        lstm = eddl.LSTM([to_lstm, lstate], args.lstm_size, True, name="lstm_cell")
+        lstm.isrecurrent = False
+        out_lstm = eddl.Softmax(eddl.Dense(lstm, self.voc_size, name="out_dense"), name="rnn_out")
+        model = eddl.Model([cnn_top_in, cnn_out_in, lstm_in, context, lstate], [out_lstm])
+        eddl.build(model, eddl.adam(), ["mse"], ["accuracy"], eddl.CS_CPU(mem="full_mem"))
+        eddl.summary(model)
+        print("model for predictions built")
+
+        # copy parameters from the trained recurrent network
+        eddl.copyParam(eddl.getLayer(self.rnn, "visual_features"), # ok
+                        eddl.getLayer(model, "visual_features")) # ok
+        eddl.copyParam(eddl.getLayer(self.rnn, "dense_alpha_v"), # ok
+                        eddl.getLayer(model, "dense_alpha_v")) # ok
+        eddl.copyParam(eddl.getLayer(self.rnn, "semantic_features"), # ok
+                        eddl.getLayer(model, "semantic_features")) # ok
+        eddl.copyParam(eddl.getLayer(self.rnn, "dense_alpha_s"), # ok
+                        eddl.getLayer(model, "dense_alpha_s")) # ok
+        eddl.copyParam(eddl.getLayer(self.rnn, "co_attention"), # ok
+                        eddl.getLayer(model, "co_attention")) # ok
+        
+        eddl.copyParam(eddl.getLayer(self.rnn, "lstm_cell"), # ok
+                        eddl.getLayer(model, "lstm_cell")) # ok
+        eddl.copyParam(eddl.getLayer(self.rnn, "out_dense"),
+                        eddl.getLayer(model, "out_dense"))
+        eddl.copyParam(eddl.getLayer(self.rnn, "word_embs"), # ok
+                        eddl.getLayer(model, "word_embs")) # ok
+        print("parameters copied from recurrent to non-recurrent model")
+        return model
+    #<
+
+    def predict(self):
+        # build a non-recurrent model for the predictions
+        cnn = self.cnn
+        eddl.toCPU(cnn) 
+        rnn = self.build_model_prediction()
+        eddl.toCPU(rnn)
+        
+        # print(f"1: {len(ds)}")
+        # ds.batch_size = 1
+        # print(f"2: {len(ds)}")
+        # exit()
+        ds = self.ds
+        ds.set_stage("test")
+   
+        # connection cnn -> rnn
+        image_in = eddl.getLayer(cnn, "input")
+        cnn_out = eddl.getLayer(cnn, "cnn_out")
+        cnn_top = eddl.getLayer(cnn, "top")
+        
+        for i in range(len(ds)):
+            images, _, texts = ds[i]
+            bs = images.shape[0]
+            
+            X = Tensor(images)
+            eddl.forward(cnn, [X])
+            cnn_semantic = eddl.getOutput(cnn_out)
+            cnn_visual = eddl.getOutput(cnn_top)
+            print(f"batch, images: {X.shape}")
+            print(f"\t- output. semantic: {cnn_semantic.shape}, visual: {cnn_visual.shape}")
+            
+            Y = Tensor(texts)        
+            print(f"tensor texts, shape: {Y.shape}")
+            Y = Tensor.onehot(Y, self.voc_size)
+            print(f"1-hot tensor, shape {Y.shape}")
+
+            for j in range(1, texts.shape[1]):
+                state = Tensor([bs, 2, self.conf["lstm_size"]])
+                in_vals = Y.select([":", ":j", ":"])
+                print(in_vals.shape)
+                
+
+    #< predict
 #< class
