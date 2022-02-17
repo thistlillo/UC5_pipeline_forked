@@ -334,8 +334,6 @@ class EddlRecurrentModule:
         features = eddl.Concat([v_att, s_att], name="co_att_in")
         context = eddl.Dense(features, self.conf["emb_size"], name="co_attention")
 
-
-
         lstm_in = eddl.Input([self.voc_size])
         lstate = eddl.States([2, args.lstm_size])
         
@@ -344,9 +342,13 @@ class EddlRecurrentModule:
         to_lstm = eddl.Concat([to_lstm, context])
         lstm = eddl.LSTM([to_lstm, lstate], args.lstm_size, True, name="lstm_cell")
         lstm.isrecurrent = False
-        out_lstm = eddl.Softmax(eddl.Dense(lstm, self.voc_size, name="out_dense"), name="rnn_out")
-        model = eddl.Model([cnn_top_in, cnn_out_in, lstm_in, context, lstate], [out_lstm])
+        #TODO: rename output for argmax insert axis
+        out_lstm = eddl.ReduceArgMax(eddl.Softmax(eddl.Dense(lstm, self.voc_size, name="out_dense"), name="rnn_out"))
+        
+        # *** model
+        model = eddl.Model([cnn_top_in, cnn_out_in, lstm_in, lstate], [out_lstm])
         eddl.build(model, eddl.adam(), ["mse"], ["accuracy"], eddl.CS_CPU(mem="full_mem"))
+        
         eddl.summary(model)
         print("model for predictions built")
 
@@ -372,46 +374,81 @@ class EddlRecurrentModule:
         return model
     #<
 
+    # uses a non-recurrent model for the predictions
     def predict(self):
-        # build a non-recurrent model for the predictions
+        #>
         cnn = self.cnn
         eddl.toCPU(cnn) 
         rnn = self.build_model_prediction()
         eddl.toCPU(rnn)
-        
+        #<
+
+        #>
+        # batch size, can be set to 1 for clarity
         # print(f"1: {len(ds)}")
         # ds.batch_size = 1
         # print(f"2: {len(ds)}")
-        # exit()
         ds = self.ds
         ds.set_stage("test")
-   
-        # connection cnn -> rnn
+        vocab = self.ds.vocab
+        #< 
+
+        #> connection cnn -> rnn
         image_in = eddl.getLayer(cnn, "input")
         cnn_out = eddl.getLayer(cnn, "cnn_out")
         cnn_top = eddl.getLayer(cnn, "top")
-        
+        #<
+
+        #> lstm and output layers
+        lstm = eddl.getLayer(rnn, "lstm_cell")
+        rnn_out = eddl.getLayer(rnn, "rnn_out")
+        #<
+
+        dev = self.conf.dev
         for i in range(len(ds)):
             images, _, texts = ds[i]
-            bs = images.shape[0]
+            bs = images.shape[0] # TODO: bs is constant across batches    
             
+            #> cnn forward
             X = Tensor(images)
             eddl.forward(cnn, [X])
             cnn_semantic = eddl.getOutput(cnn_out)
             cnn_visual = eddl.getOutput(cnn_top)
-            print(f"batch, images: {X.shape}")
-            print(f"\t- output. semantic: {cnn_semantic.shape}, visual: {cnn_visual.shape}")
+            #<
+            if dev: 
+                print(f"batch, images: {X.shape}")
+                print(f"\t- output. semantic: {cnn_semantic.shape}, visual: {cnn_visual.shape}")
             
-            Y = Tensor(texts)        
-            print(f"tensor texts, shape: {Y.shape}")
+            #> target texts are used for convenience to select the BOS token
+            Y = Tensor(texts[:, 0])
+            Y.reshape_( [bs, 1] )
+            if dev:
+                print(f"tensor texts, shape: {Y.shape}")
             Y = Tensor.onehot(Y, self.voc_size)
-            print(f"1-hot tensor, shape {Y.shape}")
+            if dev:
+                print(f"1-hot tensor, shape {Y.shape}")
+                print(f'should see 1 at the second position: {Y.select([":5", "0", ":4"]).getdata()}')
+            
+            # lstm cell state
+            state = Tensor.zeros([bs, 2, self.conf["lstm_size"]])
 
+            token = Y  # BOS
             for j in range(1, texts.shape[1]):
-                state = Tensor([bs, 2, self.conf["lstm_size"]])
-                in_vals = Y.select([":", ":j", ":"])
-                print(in_vals.shape)
+                eddl.forward(rnn, [cnn_visual, cnn_semantic, token, state])
+                states = eddl.getStates(lstm)
+                if dev:
+                    print(f"|states|= {len(states)}")
+                    print(f"states[0]: {states[0].shape}")
+                    print(f"|states[1]: {states[1].shape}")
+                # save the state for the next token
+                for si in range(len(states)):
+                    states[si].reshape_([ states[si].shape[0], 1, states[si].shape[1] ])
+                    state.set_select( [":", str(si), ":"] , states[si] )
                 
+                out_token = eddl.getOutput(rnn_out)
 
+                print(f"rnn output: {out_token.shape}")
+
+        #< for over batches
     #< predict
 #< class
