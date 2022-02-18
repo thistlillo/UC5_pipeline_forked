@@ -163,7 +163,7 @@ class EddlRecurrentModule:
         
         #for name in [_.name for _ in rnn.layers]:
         #    eddl.initializeLayer(rnn, name)
-
+        
         eddl.summary(rnn)
         print('rnn built')
         return rnn
@@ -249,7 +249,13 @@ class EddlRecurrentModule:
             self.run["time/train+val/epoch"].log(val_end - t1, step=ei)
         #< epoch
         end_train_t = time.perf_counter()
+       
         print(f"rnn training complete: {H.precisedelta(end_train_t - start_train_t)}")
+        eddl.save_net_to_onnx_file(rnn, self.conf.out_fn)  # cannot be load, error LDense only works over 2D tensors (LDense)
+        bin_out = self.conf.out_fn.replace(".onnx", ".bin")
+        eddl.save(rnn, bin_out)
+        print(f"trained recurrent model saved at {self.conf.out_fn}")
+        print(f"\t  binary model saved at {bin_out}")
     #<
 
     def validation(self):
@@ -328,7 +334,9 @@ class EddlRecurrentModule:
 
         cnn_out_in = eddl.Input([semantic_dim], name="in_semantic_features")
         semantic_features = eddl.Embedding(eddl.ReduceArgMax(cnn_out_in, [0]), cnn_out_in.output.shape[1], 1, self.conf["emb_size"], name="semantic_features")
-        alpha_s = eddl.Softmax(eddl.Dense(eddl.Tanh(semantic_features), self.conf["emb_size"], name="dense_alpha_s"), name="alpha_s")  # missing sentence component cnn_out.output.shape[1]
+        alpha_s = eddl.Softmax(
+                    eddl.Dense(eddl.Tanh(semantic_features), self.conf["emb_size"], name="dense_alpha_s"), 
+                name="alpha_s")  # missing sentence component cnn_out.output.shape[1]
         s_att = eddl.Mult(alpha_s, semantic_features)
 
         features = eddl.Concat([v_att, s_att], name="co_att_in")
@@ -342,35 +350,35 @@ class EddlRecurrentModule:
         to_lstm = eddl.Concat([to_lstm, context])
         lstm = eddl.LSTM([to_lstm, lstate], args.lstm_size, True, name="lstm_cell")
         lstm.isrecurrent = False
-        #TODO: rename output for argmax insert axis
-        out_lstm = eddl.ReduceArgMax(eddl.Softmax(eddl.Dense(lstm, self.voc_size, name="out_dense"), name="rnn_out"))
+       
+        out_lstm = eddl.Softmax(
+                    eddl.Dense(lstm, self.voc_size, name="out_dense"), 
+                  name="rnn_out")
         
         # *** model
         model = eddl.Model([cnn_top_in, cnn_out_in, lstm_in, lstate], [out_lstm])
         eddl.build(model, eddl.adam(), ["mse"], ["accuracy"], eddl.CS_CPU(mem="full_mem"))
-        
         eddl.summary(model)
         print("model for predictions built")
 
-        # copy parameters from the trained recurrent network
-        eddl.copyParam(eddl.getLayer(self.rnn, "visual_features"), # ok
-                        eddl.getLayer(model, "visual_features")) # ok
-        eddl.copyParam(eddl.getLayer(self.rnn, "dense_alpha_v"), # ok
-                        eddl.getLayer(model, "dense_alpha_v")) # ok
-        eddl.copyParam(eddl.getLayer(self.rnn, "semantic_features"), # ok
-                        eddl.getLayer(model, "semantic_features")) # ok
-        eddl.copyParam(eddl.getLayer(self.rnn, "dense_alpha_s"), # ok
-                        eddl.getLayer(model, "dense_alpha_s")) # ok
-        eddl.copyParam(eddl.getLayer(self.rnn, "co_attention"), # ok
-                        eddl.getLayer(model, "co_attention")) # ok
-        
-        eddl.copyParam(eddl.getLayer(self.rnn, "lstm_cell"), # ok
-                        eddl.getLayer(model, "lstm_cell")) # ok
-        eddl.copyParam(eddl.getLayer(self.rnn, "out_dense"),
-                        eddl.getLayer(model, "out_dense"))
-        eddl.copyParam(eddl.getLayer(self.rnn, "word_embs"), # ok
-                        eddl.getLayer(model, "word_embs")) # ok
-        print("parameters copied from recurrent to non-recurrent model")
+        #> copy parameters from the trained recurrent network
+        layers_to_copy = [
+            "visual_features", "dense_alpha_v",
+            "semantic_features", "dense_alpha_s", "co_attention",
+            "lstm_cell", "out_dense", "word_embs"
+        ]
+        for l in layers_to_copy:
+            eddl.copyParam(eddl.getLayer(self.rnn, l), eddl.getLayer(model, l))
+        #<
+
+        # IMPORTANT
+        # NOTICE: saving model with non-recurrent LSTM cell
+        # eddl.save_net_to_onnx_file(model, "a2.onnx")  # error:  The layer State1 has no OpType in Onnx.
+        pred_out_fn = self.conf.out_fn.replace(".onnx", "_pred.bin")
+        eddl.save(model, pred_out_fn)
+        print("binary non-recurrent model (for predictions) saved at: {pred_out_fn}")
+        # if the model is saved in onnx, there is the same error as in the recurrent model when loaded: 
+        #       LDense only works over 2D tensors (LDense)
         return model
     #<
 
@@ -401,14 +409,16 @@ class EddlRecurrentModule:
 
         #> lstm and output layers
         lstm = eddl.getLayer(rnn, "lstm_cell")
-        rnn_out = eddl.getLayer(rnn, "rnn_out")
+        rnn_out = eddl.getLayer(rnn, "rnn_out")  # softmax
         #<
 
         dev = self.conf.dev
+        n_tokens = self.conf.n_tokens
+        last_layer = eddl.getLayer(rnn, "rnn_out")  # rnn.layers[-1]
+        bs = self.conf.batch_size
+        generated_tokens = np.zeros( (len(ds) * bs, n_tokens), dtype=int)
         for i in range(len(ds)):
             images, _, texts = ds[i]
-            bs = images.shape[0] # TODO: bs is constant across batches    
-            
             #> cnn forward
             X = Tensor(images)
             eddl.forward(cnn, [X])
@@ -418,37 +428,36 @@ class EddlRecurrentModule:
             if dev: 
                 print(f"batch, images: {X.shape}")
                 print(f"\t- output. semantic: {cnn_semantic.shape}, visual: {cnn_visual.shape}")
+                     
+            # lstm cell states
+            state_t = Tensor.zeros([bs, 2, self.conf["lstm_size"]])
+            # token: input to lstm cell
+            token = Tensor.zeros([bs, self.voc_size])
             
-            #> target texts are used for convenience to select the BOS token
-            Y = Tensor(texts[:, 0])
-            Y.reshape_( [bs, 1] )
-            if dev:
-                print(f"tensor texts, shape: {Y.shape}")
-            Y = Tensor.onehot(Y, self.voc_size)
-            if dev:
-                print(f"1-hot tensor, shape {Y.shape}")
-                print(f'should see 1 at the second position: {Y.select([":5", "0", ":4"]).getdata()}')
-            
-            # lstm cell state
-            state = Tensor.zeros([bs, 2, self.conf["lstm_size"]])
-
-            token = Y  # BOS
-            for j in range(1, texts.shape[1]):
-                eddl.forward(rnn, [cnn_visual, cnn_semantic, token, state])
+            for j in range(0, n_tokens):
+                print(f" *** token {j}/{n_tokens} ***")
+                eddl.forward(rnn, [cnn_visual, cnn_semantic, token, state_t])
                 states = eddl.getStates(lstm)
-                if dev:
-                    print(f"|states|= {len(states)}")
-                    print(f"states[0]: {states[0].shape}")
-                    print(f"|states[1]: {states[1].shape}")
+                
                 # save the state for the next token
                 for si in range(len(states)):
                     states[si].reshape_([ states[si].shape[0], 1, states[si].shape[1] ])
-                    state.set_select( [":", str(si), ":"] , states[si] )
+                    state_t.set_select( [":", str(si), ":"] , states[si] )
                 
-                out_token = eddl.getOutput(rnn_out)
-
-                print(f"rnn output: {out_token.shape}")
-
+                out_soft = eddl.getOutput(last_layer)
+                
+                # pass control to numpy for argmax
+                a = np.array(out_soft, copy=False)
+                wis = np.argmax(a, axis=-1)
+                generated_tokens[i*bs:i*bs+wis.shape[0], j] = wis
+                word_index = Tensor.fromarray(wis.astype(float))
+                
+                word_index.reshape_([bs, 1])  # add dimension for one-hot encoding
+                token = Tensor.onehot(word_index, self.voc_size)
+                
+                token.reshape_([bs, self.voc_size])  # remove singleton dim          
+            #< for n_tokens
+            print(generated_tokens)
         #< for over batches
     #< predict
 #< class
