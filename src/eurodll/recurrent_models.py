@@ -44,7 +44,7 @@ def recurrent_lstm_model(visual_dim, semantic_dim, vs, emb_size, lstm_size, init
 
 # model used for generating text (test-inference stage)
 def nonrecurrent_lstm_model(visual_dim, semantic_dim, vs, emb_size, lstm_size, init_v=0.05):
-    cnn_top_in, cnn_out_in, context = _shared_top(visual_dim, semantic_dim, vs, emb_size, init_v)
+    cnn_top_in, cnn_out_in, context = _shared_top(visual_dim, semantic_dim, emb_size, init_v)
     
     lstm_in = eddl.Input([vs])
     lstate = eddl.States([2, lstm_size])
@@ -62,17 +62,6 @@ def nonrecurrent_lstm_model(visual_dim, semantic_dim, vs, emb_size, lstm_size, i
     # *** model
     model = eddl.Model([cnn_top_in, cnn_out_in, lstm_in, lstate], [out_lstm])
     print("model for predictions built")
-
-    # #> copy parameters from the trained recurrent network
-    # layers_to_copy = [
-    #     "visual_features", "dense_alpha_v",
-    #     "semantic_features", "dense_alpha_s", "co_attention",
-    #     "lstm_cell", "out_dense", "word_embs"
-    # ]
-    # for l in layers_to_copy:
-    #     eddl.copyParam(eddl.getLayer(self.rnn, l), eddl.getLayer(model, l))
-    # #<
-
     # if the model is saved in onnx, there is the same error as in the recurrent model when loaded: 
     #       LDense only works over 2D tensors (LDense)
     return model
