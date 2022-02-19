@@ -40,10 +40,12 @@ def train(in_tsv,
          dev = False,
          remote_log = False):
     config=locals()
-    rec_mdl = EddlRecurrentModule(config)
-    rec_mdl.train()
-    rec_mdl.predict()
-    rec_mdl.save()  # save ok, but cannot be loaded (error)
+    rec_mod = EddlRecurrentModule(config)
+    rec_mod.train()
+    rec_mod.save()  # save ok, but cannot be loaded (error)
+    bleu, gen_wis = rec_mod.predict()
+    print(f"BLEU score on test set: {bleu:.3f}")
+   
 #< train
 
 
@@ -83,10 +85,10 @@ def test(in_tsv,
          dev = False):
     config=locals()
     print("NOT IMPLEMENTED - USE TRAIN")
-    exit(1)
+    assert False
     rec_mdl = EddlRecurrentModule(config)
     rec_mdl.predict()
-
+#<
 
 
 # ---------------------------------------

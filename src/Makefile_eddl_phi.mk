@@ -181,7 +181,14 @@ split_data: $(SPLIT_WITNESS)
 # softmax or sigmoid: LEAVE SOFTMAX
 CNN_OUT_LAYER=softmax
 CNN_MODEL_OUT_FN = $(EXP_FLD)/cnn_$(CNN_OUT_LAYER)_eddl.onnx
-REC_MODEL_OUT_FN = $(EXP_FLD)/rnn_phi_eddl.onnx
+# the following without extension because several files are saved, with different exts
+REC_MODEL_OUT_FN = $(EXP_FLD)/rnn_rec.onnx
+# the following files are saved after training and testing by C01_2_rec...
+REC_MODEL_OUT_PRED_FN = $(subst .onnx,_pred.onnx,$(REC_MODEL_OUT_FN))
+REC_MODEL_OUT_FN_BIN = $(subst .onnx,.bin,$(REC_MODEL_OUT_FN))
+REC_MODEL_OUT_PRED_FN_BIN = $(subst .onnx,_pred.bin,$(REC_MODEL_OUT_FN))
+
+$(warning PREDICTIVE MODEL EXPECTED ${REC_MODEL_OUT_PRED_FN})
 
 CHECK_VAL_EVERY_CNN=5
 CHECK_VAL_EVERY_RNN=10
@@ -259,13 +266,16 @@ train_rec: $(REC_MODEL_OUT_FN)
 
 train_rec_clean:
 	rm -f $(REC_MODEL_OUT_FN)
-
+	rm -f $(REC_MODEL_OUT_PRED_FN)
+	rm -f $(REC_MODEL_OUT_FN_BIN)
+	rm -f $(REC_MODEL_OUT_PRED_FN_BIN)
+	
 train: $(REC_MODEL_OUT_FN)
 
 # -----------------------------------------------
 C_pipeline: | split_data train
 
-C_pipeline_clean:
+C_pipeline_clean: train_rec_clean
 	$(warning check recipe)
 	rm -f $(CNN_MODEL_OUT_FN)
 	rm -f $(EXP_FLD)/cnn_checkpoint.onnx
