@@ -193,10 +193,12 @@ class Uc5Dataset:
 
         # the code below is NOT USED: the first images in the dataset are used for filling
         #    the last batch
+        print(f"last batch policy: {self.last_batch}")
         if (self.last_batch == "random") and ( (len(idxs) % self.batch_size) > 0 ):
             self.n_batches += 1
             if self.verbose > Uc5Dataset.VERBOSE_INFO:
                 print(f"{self.stage} stage: last batch with {self.n_batches % self.batch_size} items (less than batch size {self.batch_size})")
+        
         #print(f"{self.stage}:{len(idxs)} examples - number of batches: {self.n_batches} - bs: {self.batch_size}, mul: {self.n_batches*self.batch_size}")
         #print(f"\t\t last batch [{ (self.n_batches-1) * self.batch_size} - {self.n_batches * self.batch_size - 1}]")
 

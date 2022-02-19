@@ -81,6 +81,7 @@ class EddlCnnModule:
         return eddl.download_resnet18(top=top)  # , input_shape=[3, 256, 256]) 
     #<
 
+    # returns an output layer with the activation specified via cli
     def get_out_layer(self, top_layer, version=None, layer_name="cnn_out"):
         out_layer_act = version or self.conf.cnn_out_layer
         print(f"cnn, output layer: {version}")
