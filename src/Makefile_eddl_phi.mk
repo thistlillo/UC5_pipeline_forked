@@ -141,7 +141,9 @@ $(ENC_WITNESS): $(REPORTS_CLEAN) B01_encode_data.py
 	$(warning B01_encode.py produces multiple output files. Using witness ${ENC_WITNESS} in Makefile)
 	@rm -f $@.tmp
 	@touch $@.tmp
-	$(PYTHON) B01_encode_data.py --in_file=$(REPORTS_CLEAN) --out_fld=$(EXP_FLD) --out_tsv=$(REPORTS_ENC) --out_img_tsv=$(IMG_BASED_DS_ENC) --term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) --vocab_size=$(VOCABULARY_SIZE) --min_freq=$(MIN_WORD_FREQ) --sen_len=$(MAX_SENTENCE_LENTH) $(VERBOSITY_B)
+	$(PYTHON) B01_encode_data.py --in_file=$(REPORTS_CLEAN) --out_fld=$(EXP_FLD) --out_tsv=$(REPORTS_ENC) \
+		--out_img_tsv=$(IMG_BASED_DS_ENC) --term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) \
+		--vocab_size=$(VOCABULARY_SIZE) --min_freq=$(MIN_WORD_FREQ) --sen_len=$(MAX_SENTENCE_LENTH) $(VERBOSITY_B)
 	@mv -f $@.tmp $@
 
 encode: $(ENC_WITNESS)
@@ -279,23 +281,38 @@ C_pipeline_clean: train_rec_clean
 	$(warning check recipe)
 	rm -f $(CNN_MODEL_OUT_FN)
 	rm -f $(EXP_FLD)/cnn_checkpoint.onnx
-# rm -f $(EXP_FLD)/validation_best.pt
-# rm -f $(EXP_FLD)/$(THIS_MAKEFILE)
-# rm -fr $(EXP_FLD)/checkpoints
 	rm -f $(SPLIT_WITNESS)
 	rm -f $(addprefix $(EXP_FLD)/, test_ids.txt train_ids.txt valid_ids.txt)
-# rmdir $(EXP_FLD)
+	rmdir $(EXP_FLD)
+
+#
+# *** P I P E L I N E   D ***
+#
+DEV_MODE_D = False
+
+$(EXP_FLD)/annotated_phi.tsv: $(CNN_MODEL_OUT_FN) $(REC_MODEL_OUT_FN) D01_gen_text_phi.py
+	$(PYTHON) D01_gen_text_phi.py --out_fn=$@ --exp_fld=$(EXP_FLD) \
+		--cnn_model=$(CNN_MODEL_OUT_FN) --rnn_model=$(REC_MODEL_OUT_FN) \
+		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
+		--tsv_file=$(IMG_BASED_DS_ENC) --dev=$(DEV_MODE_D)
+
+annotate_phi: $(EXP_FLD)/annotated_phi.tsv
+
+D_pipeline_clean:
+	rm -f $(EXP_FLD)/annotated_phi.tsv
 
 
 # *** ***
 all: train_cnn
 
 # *** ***
-clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean
+clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean D_pipeline_clean
 	rmdir $(EXP_FLD)
+
 # ***  *** 
 .PHONY: all clean download process_raw_dataset reports_tsv \
 	A_pipeline A_pipeline_clean \
 	clean_text encode B_pipeline B_pipeline_clean \
 	split_data train_cnn train_rnn C_pipeline C_pipeline_clean \
-	train_cnn_clean train_rnn_clean
+	train_cnn_clean train_rnn_clean \
+	annotate_phi D_pipeline_clean

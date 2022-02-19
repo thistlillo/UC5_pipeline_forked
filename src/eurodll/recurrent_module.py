@@ -324,6 +324,7 @@ class EddlRecurrentModule:
         #> for over test dataset
         bleu = 0
         generated_word_idxs = np.zeros( (bs * len(ds), n_tokens), dtype=int)
+        t1 = time.perf_counter()
         for i in range(len(ds)):
             images, _, texts = ds[i]
             #> cnn forward
@@ -346,9 +347,14 @@ class EddlRecurrentModule:
             #     for i in range(images.shape[0]):
             #         print(f"*** batch {i+1} / {len(ds)} gen word idxs ***")
             #         print(batch_gen[i, :])
+            if dev:
+                break
         #< for i over batches in the test dataset
+        t2 = time.perf_counter()
+        print(f"tested in {H.precisedelta(t2-t1)}")
         bleu = bleu / len(ds)
         self.run["test/bleu"] = bleu
+        self.run["test/time"] = t2 - t1
         return bleu, generated_word_idxs
     #< predict
 #< class
