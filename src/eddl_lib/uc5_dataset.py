@@ -1,3 +1,7 @@
+# 
+# UC5, DeepHealth
+# Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
+#
 import fire
 import json
 import math

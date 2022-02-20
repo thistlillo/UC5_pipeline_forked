@@ -5,7 +5,6 @@
 #
 # Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
 #
-# A_pipeline:
 
 
 # THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))

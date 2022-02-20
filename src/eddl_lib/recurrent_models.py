@@ -1,5 +1,7 @@
-
-
+# 
+# UC5, DeepHealth
+# Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
+#
 import pyeddl.eddl as eddl
 from pyeddl.tensor import Tensor
 import numpy as np

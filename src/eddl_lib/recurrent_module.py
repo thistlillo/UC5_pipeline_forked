@@ -1,3 +1,7 @@
+# 
+# UC5, DeepHealth
+# Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
+#
 import humanize as H
 import numpy as np
 import pandas as pd
