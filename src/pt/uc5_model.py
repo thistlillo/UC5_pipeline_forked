@@ -256,5 +256,5 @@ def compute_bleu(predictions, text):
     for i in range(predictions.shape[0]):
         pred = build_str(predictions[i, :, :].squeeze())
         txt = build_str(text[i, :, :].squeeze())
-        bleu += sentence_bleu(pred, txt)
+        bleu += sentence_bleu([txt], pred)
     return bleu / predictions.shape[0]

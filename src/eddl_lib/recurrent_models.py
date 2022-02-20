@@ -22,10 +22,10 @@ def _shared_top(visual_dim, semantic_dim, emb_size, init_v):
     print(f"layer semantic features: {semantic_features.output.shape}")
 
     # co-attention
-    features = eddl.Concat([v_att, s_att], name="co_att_in")
-    context = eddl.RandomUniform(eddl.Dense(features, emb_size, name="co_attention"), -2*init_v, 2*init_v)
-    print(f"layer coattention: {context.output.shape}")
-    return cnn_top_in, cnn_out_in, context
+    features = eddl.Concat([v_att, s_att], name="co_attention")  # name="co_att_in")
+    #context = eddl.RandomUniform(eddl.Dense(features, emb_size, name="co_attention"), -2*init_v, 2*init_v)
+    #print(f"layer coattention: {context.output.shape}")
+    return cnn_top_in, cnn_out_in, features
 
 
 def recurrent_lstm_model(visual_dim, semantic_dim, vs, emb_size, lstm_size, init_v=0.05):

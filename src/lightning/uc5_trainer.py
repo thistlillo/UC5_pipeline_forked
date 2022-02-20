@@ -121,10 +121,6 @@ class Uc5Trainer:
         print(f"best model on validation saved in pytorch format at: {best_on_val_fn}")
         #<
         
-        
-    
-
-
         print("test completed")
         print("done.")
     #< train
