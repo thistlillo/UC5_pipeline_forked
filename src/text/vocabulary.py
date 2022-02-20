@@ -142,73 +142,74 @@ class Vocabulary:
         print(f"|vocabulary| = {self.n_words} (incl. special tokens), before it was {n_original_words} ")
     #< set_n_words
 
-    def encode_sentence(self, sentence, sentence_length=0):
-        out = [self.word2index["bos"]]
-        counter = 1
-        for word in sentence.split(" "):
-            idx = self.word2index.get(word, None)
-            if idx:
-                out.append(idx)
-                counter += 1
-            if counter == sentence_length-1:
-                break
-        out.append(self.word2index["eos"])
-        counter += 1
+    # def encode_sentence(self, sentence, sentence_length=0):
+    #     out = [self.word2index[Vocabulary.BOS]]
+    #     counter = 1
+    #     for word in sentence.split(" "):
+    #         idx = self.word2index.get(word, None)
+    #         if idx:
+    #             out.append(idx)
+    #             counter += 1
+    #         if counter == sentence_length-1:
+    #             break
+    #     out.append(self.word2index["eos"])
+    #     counter += 1
         
-        if counter < sentence_length:
-            for i in range(counter, sentence_length):
-                out.append(self.word2index["pad"])
+    #     if counter < sentence_length:
+    #         for i in range(counter, sentence_length):
+    #             out.append(self.word2index["pad"])
 
-        return out
-    #< encode_sentence
+    #     return out
+    # #< encode_sentence
 
-    def empty_padded_sentence(self, length):
-        return [self.word2index["pad"] for _ in range(length + 2)]
-    #<
+    # def empty_padded_sentence(self, length):
+    #     return [self.word2index["pad"] for _ in range(length + 2)]
+    # #<
 
-    def simple_encode(self, text, max_tokens):
-        counter = 0
-        out = []
-        for sent in sent_tokenize(text):
-            for token in sent.split(" "):
-                out.append(token)
-                counter += 1
-                if counter == (max_tokens - 2): # for bos, eos
-                    break
-            if counter == (max_tokens -2):
-                break
-        enc = self.encode_sentence(" ".join(out), sentence_length=max_tokens)
-        return enc
-    #< simple_encode
+    # def simple_encode(self, text, max_tokens):
+    #     counter = 0
+    #     out = []
+    #     for sent in sent_tokenize(text):
+    #         for token in sent.split(" "):
+    #             out.append(token)
+    #             counter += 1
+    #             if counter == (max_tokens - 2): # for bos, eos
+    #                 break
+    #         if counter == (max_tokens -2):
+    #             break
+    #     enc = self.encode_sentence(" ".join(out), sentence_length=max_tokens)
+    #     return enc
+    # #< simple_encode
 
-    def encode(self, text, n_sentences=0, sentence_length=0):
-        """Encode a text with sentences delimited by dots using the indexes previously set.
-        Args:
-            text ([string]): text to encode
-            n_sentences (int, optional): If greater than 0, the output encoding will have exactly n_sentences, possibly empty; if 0 the encoding will be as expected. Defaults to 0.
-            sentence_length (int, optional): If greater than 0, the encoded sentence will be trimmed or padded to sentence_length words. If 0 sentences will contain the indexes of the input tokens and nothing else. Defaults to 0.
+    # def encode(self, text, n_sentences=0, sentence_length=0):
+    #     """Encode a text with sentences delimited by dots using the indexes previously set.
+    #     Args:
+    #         text ([string]): text to encode
+    #         n_sentences (int, optional): If greater than 0, the output encoding will have exactly n_sentences, possibly empty; if 0 the encoding will be as expected. Defaults to 0.
+    #         sentence_length (int, optional): If greater than 0, the encoded sentence will be trimmed or padded to sentence_length words. If 0 sentences will contain the indexes of the input tokens and nothing else. Defaults to 0.
 
-        Returns:
-            [list of lists of int]: Each inner list corresponds to an encoded input sentence.
-        """
-        e_text = []
-        counter = 0
-        for sent in sent_tokenize(text):
-            e_sent = self.encode_sentence(sent, sentence_length)
-            if len(e_sent) > 2:  # bos and eos always included
-                e_text.append(e_sent)
-            counter += 1
-            if counter == n_sentences:
-                break
+    #     Returns:
+    #         [list of lists of int]: Each inner list corresponds to an encoded input sentence.
+    #     """
+    #     e_text = []
+    #     counter = 0
+    #     for sent in sent_tokenize(text):
+    #         e_sent = self.encode_sentence(sent, sentence_length)
+    #         if len(e_sent) > 2:  # bos and eos always included
+    #             e_text.append(e_sent)
+    #         counter += 1
+    #         if counter == n_sentences:
+    #             break
 
-        # TODO: a little strange here if sentence_length == 0
-        for _ in range(counter, n_sentences):
-            e_text.append(self.empty_padded_sentence(sentence_length))
-        return e_text
-    #< encode
+    #     # TODO: a little strange here if sentence_length == 0
+    #     for _ in range(counter, n_sentences):
+    #         e_text.append(self.empty_padded_sentence(sentence_length))
+    #     return e_text
+    # #< encode
 
-    def decode_sentence(self, e_sent):
-        dec = " ".join( [self.index2word[int(i)] for i in e_sent if (i not in Vocabulary.EXTRA_TOKENS.values())] )
+    # used by text_generation_phi
+    def decode_sentence(self, e_sent: str):
+        dec = " ".join( [self.index2word[int(i)] for i in e_sent.split(" ") if (int(i) not in Vocabulary.EXTRA_TOKENS.values())] )
         return dec
     
     def decode(self, e_text):

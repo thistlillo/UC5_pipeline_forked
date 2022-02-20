@@ -8,6 +8,7 @@ import pyecvl.ecvl as ecvl
 from tqdm import tqdm
 
 from eddl_lib.recurrent_models import nonrecurrent_lstm_model, generate_text
+from text.encoding import SimpleCollator
 from text.metrics import compute_bleu_edll
 from text.reports import csv_sep, list_sep
 
@@ -124,6 +125,8 @@ def main(out_fn,
     print("")
     
     #> read the tsv and annotate all of the images
+    collator = SimpleCollator()
+
     print(f"> step 2: processing {tsv_file}")
     tsv = pd.read_csv(tsv_file, sep=csv_sep)
     print(f" - shape: {tsv.shape}")
@@ -145,35 +148,52 @@ def main(out_fn,
         assert sum([len(l) for l in id_lists]) == tsv.shape[0]
     
     #<
-    tsv["text"] = tsv["enc_text"].apply(lambda x:  # x over rows in column "text"
-        vocab.decode_sentence(
-            [y.replace(".", " ") for y in x.split(" ")]  # split on blanks, removed dots that separate sentences
+    def tokens_eddl(wis_str, max_tokens):
+        wis = wis_str.split(" ")
+        out = []
+        i = 0
+        while i < len(wis) and i < max_tokens-1:
+            out.append(wis[i].replace(".", ""))
+            i+=1
+        out.append(str(vocab.EOS_I))
+        return " ".join(out)
+    #<
+
+    # all intermediate results saved as strings to avoid mixing lists, nd.array etc
+    tsv["enc_text_eddl"] = tsv["enc_text"].apply(lambda x: " ".join(
+        [str(y) for y in collator.parse_and_collate(x, n_tokens=args.n_tokens)]
         ))
+    tsv["target_text"] = tsv["enc_text_eddl"].apply(lambda x:  # x over rows in column "text"
+        vocab.decode_sentence(x))
+    
     tsv["gen_text"] = ""
     tsv["gen_wis"] = ""
     tsv["partition"] = ""
-    tsv["bleu"] = 0
+    tsv["bleu"] = np.nan
     
 
     for p, l in zip(partitions, id_lists):
         print(f"processing {p}, len: {len(l)}")
         indexes = tsv.filename.isin(l)
         filenames = tsv.loc[indexes, "filename"].tolist()
+        
         gen_texts = []
         gen_word_idxs = []
+
         for fn in tqdm(filenames, disable=args.dev):
             img = load_image(join(args.img_fld, fn), augs=augs)
             gen_wis = annotate(img, cnn, rnn, args.n_tokens, dev=args.dev)[0]
             gen_wis_str = " ".join([str(n) for n in gen_wis])
-            decoded = vocab.decode_sentence(gen_wis)
+            decoded = vocab.decode_sentence(gen_wis_str)
             gen_word_idxs.append(gen_wis_str)
             gen_texts.append(decoded)
-        print(len(gen_texts))
+        
         tsv.loc[indexes, "gen_text"] = gen_texts
         tsv.loc[indexes, "gen_wis"] = gen_word_idxs
         tsv.loc[indexes, "partition"] = p.split("_", 1)[0]
-        tsv.loc[indexes, "bleu"] = tsv.loc[indexes, ["gen_wis", "enc_text"]].apply(lambda x: print(x), axis=1)
-    
+        tsv.loc[indexes, "bleu"] = tsv.loc[indexes, ["gen_wis", "enc_text_eddl"]].apply(
+            lambda x: compute_bleu_edll(x["gen_wis"], x["enc_text_eddl"]), axis=1)
+        print(f"mean BLEU on {p}: {tsv.loc[indexes, 'bleu'].mean():.3f}")
     tsv.to_csv(args.out_fn, sep=csv_sep)
     print(f"saved: {args.out_fn}")
     print("done.")

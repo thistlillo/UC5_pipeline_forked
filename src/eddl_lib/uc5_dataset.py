@@ -109,9 +109,10 @@ class Uc5Dataset:
         self.augs = ecvl.SequentialAugmentationContainer([
                 ecvl.AugDivBy255(),  #  ecvl.AugToFloat32(divisor=255.0),
                 ecvl.AugNormalize(122.75405603 / 255.0, 0.296964375 / 255.0),
-                ecvl.AugResizeDim([300, 300]),
+                ecvl.AugResizeDim([320, 320]),
                 # ecvl.AugCenterCrop([256, 256]),  # XXX should be parametric, for resnet 18
-                ecvl.AugCenterCrop([self.img_size, self.img_size]),  # XXX should be parametric, for resnet 18
+                # ecvl.AugCenterCrop([self.img_size, self.img_size]),  # XXX should be parametric, for resnet 18
+                ecvl.AugRandomCrop([self.img_size, self.img_size]),  # XXX should be parametric, for resnet 18
                 ])
         ecvl.AugmentationParam.SetSeed(self.seed)
 
@@ -434,10 +435,10 @@ class Uc5Dataset:
     #     out[0, :, :] = enc
     #     return out
 
-    def encode_text_simple(self, text):
-        # c = self.conf
-        enc = self.vocab.simple_encode(text, self.sentence_length)
-        return np.asarray(enc, dtype=float)
+    # def encode_text_simple(self, text):
+    #     # c = self.conf
+    #     enc = self.vocab.simple_encode(text, self.sentence_length)
+    #     return np.asarray(enc, dtype=float)
 
 
 def main(in_tsv,

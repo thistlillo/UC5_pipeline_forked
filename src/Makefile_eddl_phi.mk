@@ -290,7 +290,7 @@ C_pipeline_clean: train_rec_clean
 #
 DEV_MODE_D = True
 
-$(EXP_FLD)/annotated_phi.tsv: $(CNN_MODEL_OUT_FN) $(REC_MODEL_OUT_FN) D01_gen_text_phi.py
+$(EXP_FLD)/annotated_phi.tsv: $(CNN_MODEL_OUT_FN) $(REC_MODEL_OUT_FN) D01_gen_text_phi.py eddl_lib/text_generation_phi.py
 	$(PYTHON) D01_gen_text_phi.py --out_fn=$@ --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
 		--cnn_model=$(CNN_MODEL_OUT_FN) --rnn_model=$(REC_MODEL_OUT_FN) \
 		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \

@@ -7,6 +7,7 @@ import numpy as np
 from text.vocabulary import Vocabulary
 
 # _eddl: predictions and text from, respectively, edll text generation and edll dataset
+
 def compute_bleu_edll(predictions, text):
     def build_str(seqs_of_tokens):
         text = []
@@ -18,6 +19,13 @@ def compute_bleu_edll(predictions, text):
     #<
 
     bleu = 0
+    #> 
+    if type(predictions) is str and type(text) is str:
+        txt = build_str(text.split(" "))
+        pred = build_str(predictions.split(" "))
+        return sentence_bleu(pred, txt)
+    #<
+
     for i in range(predictions.shape[0]):
         pred = build_str(predictions[i, :])
         txt = build_str(text[i, :])
