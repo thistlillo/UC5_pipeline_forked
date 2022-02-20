@@ -9,11 +9,11 @@ from text.metrics import compute_bleu_edll as compute_bleu
 from text.vocabulary import Vocabulary
 import time
 
-from eurodll.uc5_dataset import Uc5Dataset
-from eurodll.recurrent_models import recurrent_lstm_model, nonrecurrent_lstm_model
-from eurodll.recurrent_models import generate_text
+from eddl_lib.uc5_dataset import Uc5Dataset
+from eddl_lib.recurrent_models import recurrent_lstm_model, nonrecurrent_lstm_model
+from eddl_lib.recurrent_models import generate_text
 import text.reports as reports
-from eurodll.jaccard import Jaccard
+from eddl_lib.jaccard import Jaccard
 
 import neptune.new as neptune
 

@@ -1,5 +1,5 @@
 import fire
-from eurodll.recurrent_module import EddlRecurrentModule
+from eddl_lib.recurrent_module import EddlRecurrentModule
 
 
 # ----------------------------------------------

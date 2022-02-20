@@ -3,7 +3,7 @@
 # Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
 #
 import fire
-from eurodll.cnn_module import EddlCnnModule
+from eddl_lib.cnn_module import EddlCnnModule
 
 
 def train(in_tsv,

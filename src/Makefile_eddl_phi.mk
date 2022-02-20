@@ -226,7 +226,7 @@ REMOTE_LOG_CNN = True
 REMOTE_LOG_RNN = True
 
 # C01_cnn_module.py
-$(CNN_MODEL_OUT_FN): $(SPLIT_WITNESS) C01_1_cnn_mod_edll.py eurodll/cnn_module.py
+$(CNN_MODEL_OUT_FN): $(SPLIT_WITNESS) C01_1_cnn_mod_edll.py 
 	$(warning training target is $@)
 	$(PYTHON) C01_1_cnn_mod_edll.py train  --out_fn=$@ \
 		--preload_images=False --preproc_images=$(PREPROC_IMGS) \
@@ -288,19 +288,20 @@ C_pipeline_clean: train_rec_clean
 #
 # *** P I P E L I N E   D ***
 #
-DEV_MODE_D = False
+DEV_MODE_D = True
 
 $(EXP_FLD)/annotated_phi.tsv: $(CNN_MODEL_OUT_FN) $(REC_MODEL_OUT_FN) D01_gen_text_phi.py
-	$(PYTHON) D01_gen_text_phi.py --out_fn=$@ --exp_fld=$(EXP_FLD) \
+	$(PYTHON) D01_gen_text_phi.py --out_fn=$@ --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
 		--cnn_model=$(CNN_MODEL_OUT_FN) --rnn_model=$(REC_MODEL_OUT_FN) \
 		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
-		--tsv_file=$(IMG_BASED_DS_ENC) --dev=$(DEV_MODE_D)
+		--tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(PREPROC_IMG_SIZE) --dev=$(DEV_MODE_D)
 
 annotate_phi: $(EXP_FLD)/annotated_phi.tsv
 
 D_pipeline_clean:
 	rm -f $(EXP_FLD)/annotated_phi.tsv
 
+annotate_phi_clean: D_pipeline_clean
 
 # *** ***
 all: train_cnn
@@ -315,4 +316,4 @@ clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean D_pipeline_clean
 	clean_text encode B_pipeline B_pipeline_clean \
 	split_data train_cnn train_rnn C_pipeline C_pipeline_clean \
 	train_cnn_clean train_rnn_clean \
-	annotate_phi D_pipeline_clean
+	annotate_phi D_pipeline_clean annotate_phi_clean

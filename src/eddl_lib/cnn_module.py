@@ -12,8 +12,8 @@ from tqdm import tqdm
 import pyeddl.eddl as eddl
 from pyeddl.tensor import Tensor
 
-from eurodll.uc5_dataset import Uc5Dataset
-from eurodll.jaccard import Jaccard
+from eddl_lib.uc5_dataset import Uc5Dataset
+from eddl_lib.jaccard import Jaccard
 import text.reports as reports
 from text.vocabulary import Vocabulary
 from utils.misc import Timer

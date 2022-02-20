@@ -20,10 +20,10 @@ class Vocabulary:
     EOS = "_eos_"
     OOV = "_oov_"  # out of vocabular: not used, ignored in current implementation
 
-    PAD_I = 0
+    PAD_I = 0  # mask_zeros
     BOS_I = 1
     EOS_I = 2
-
+    
     EXTRA_TOKENS = {PAD:PAD_I, BOS:BOS_I, EOS:EOS_I}
     EXTRA_TOKENS_I = EXTRA_TOKENS.values()
     
@@ -207,10 +207,14 @@ class Vocabulary:
         return e_text
     #< encode
 
+    def decode_sentence(self, e_sent):
+        dec = " ".join( [self.index2word[int(i)] for i in e_sent if (i not in Vocabulary.EXTRA_TOKENS.values())] )
+        return dec
+    
     def decode(self, e_text):
         sents = []
         for e_sent in e_text:
-            sents.append(" ".join( [self.index2word[i] for i in e_sent if i not in Vocabulary.EXTRA_TOKENS.values()] ) )
+            sents.append(self.decode_sentence(e_sent) )
         return ". ".join(sents) + "."
     #<
 #< class
