@@ -9,6 +9,8 @@
 
 # THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
+$(warning running makefile ${THIS_MAKEFILE})
+
 LIBRARY = lightning
 $(warning using library $(LIBRARY))
 
@@ -30,6 +32,7 @@ REPORTS = reports
 
 BASE_OUT_FLD = ../experiments_$(LIBRARY)
 EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
+$(shell mkdir -p $(EXP_FLD))
 
 TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results

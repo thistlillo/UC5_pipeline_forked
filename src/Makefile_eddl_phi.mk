@@ -10,6 +10,8 @@
 
 # THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
+$(warning running makefile ${THIS_MAKEFILE})
+
 PYTHON = python3
 
 ## -----------------------------------------------
@@ -35,6 +37,7 @@ SHUFFLE_SEED = 2000
 # -----------------------------------------------
 BASE_OUT_FLD = ../experiments_$(LIBRARY)
 EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
+$(shell mkdir -p $(EXP_FLD))
 
 TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results
@@ -219,7 +222,7 @@ TRAIN_PERCENTAGE = 0.7
 VALIDATION_PERCENTAGE = 0.1
 
 VERBOSITY_C = False
-DEBUG_C = True
+DEBUG_C = False
 DEV_MODE_C = True
 
 REMOTE_LOG_CNN = True

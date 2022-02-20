@@ -1,0 +1,20 @@
+name: torch
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - humanize
+  - nltk
+  - pandas
+  - lxml
+  - numpy
+  - bs4
+  - fire
+  - neptune-client
+  - tqdm
+  - pyyaml
+  - torchaudio
+  - pytorch
+  - cudatoolkit=11.3
+  - torchvision
+prefix: /opt/conda/envs/torch
