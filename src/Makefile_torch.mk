@@ -200,7 +200,7 @@ $(TORCH_OUT_FN): $(ENC_WITNESS) C01_train_torch.py
 	--last_batch=$(LAST_BATCH) --train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
 	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
 	--device=gpu --gpu_id=0 \
-	--loader_threads=8 \
+	--loader_threads=2 \
 	--check_val_every=50 \
 	--single_channel_cnn=True \
 	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)

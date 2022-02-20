@@ -204,7 +204,7 @@ $(MODEL_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
 	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
 	--single_channel_cnn=True \
 	--accelerator=gpu --gpus=[${GPU_ID}]  \
-	--loader_threads=0 \
+	--loader_threads=2 \
 	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
 
 train : $(MODEL_OUT_FN)
