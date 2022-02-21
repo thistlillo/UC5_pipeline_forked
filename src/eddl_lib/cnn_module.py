@@ -170,6 +170,7 @@ class EddlCnnModule:
 
         early_stop = False  # set to True if the patience threshold is reached during training
         start_train_t = time.perf_counter()
+        self.run["train/start_time"] = start_train_t
         for ei in range(n_epochs):
             print(f"{ei+1} / {n_epochs} starting, patience: {self.patience_run}/{self.patience} [kick-in: {self.patience_kick_in}]")
             
@@ -179,6 +180,8 @@ class EddlCnnModule:
             t1 = time.perf_counter()
             valid_loss, valid_acc = 0, 0
             for bi in batch_ids:
+                if (bi + 1) % 50 == 0:
+                    print(f"batch {bi+1}/{len(batch_ids)}")
                 images, labels, _ = ds[bi]
                 X = Tensor.fromarray(images)
                 Y = Tensor.fromarray(labels)
