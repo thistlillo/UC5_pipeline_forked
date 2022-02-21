@@ -2,6 +2,7 @@
 # UC5, DeepHealth
 # Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
 #
+import gc
 import humanize as H
 import numpy as np
 import pandas as pd
@@ -149,21 +150,23 @@ class EddlRecurrentModule:
 
         ds = self.ds        
         ds.set_stage("train")
-        n_epochs = self.conf.n_epochs
+        n_epochs = conf.n_epochs
         batch_ids = range(len(ds))
 
-        if self.conf["dev"]:
+        if conf.dev:
             batch_ids = [0, len(ds)-1]  # first and last batch only
-            n_epochs = 1
+            n_epochs = 2
         #<
         
         # self.run["params/activation"] = self.activation_name
         start_train_t = time.perf_counter()
 
         for ei in range(n_epochs):
-            print(f"epoch {ei+1}/{n_epochs}")
+            print(f"> epoch {ei+1}/{n_epochs}")
+            ds.last_batch = conf.last_batch
+            ds.set_stage("train")
             ds.shuffle()
-
+            eddl.set_mode(rnn, 1)
             eddl.reset_loss(rnn)
             epoch_loss, epoch_acc = 0, 0
             valid_loss, valid_acc = 0, 0
@@ -200,14 +203,16 @@ class EddlRecurrentModule:
             self.run["training/epoch/acc"].log(epoch_acc)
             self.run["time/training/epoch"].log(epoch_end-t1)
             
-            
+            if (ei+1) % 50 == 0 or conf.dev:
+                print("** generating text during training")
+                self.predict(stage="valid")
 
-            if (ei+1) % self.conf["check_val_every"] != 0:
+            if (ei+1) % conf.check_val_every != 0:
                 continue
 
             val_start = time.perf_counter()
             valid_loss, valid_acc = self.validation()
-            ds.set_stage("train")
+
             val_end = time.perf_counter()
             self.run["validation/epoch/loss"].log(valid_loss, step=ei)
             self.run["validation/epoch/acc"].log(valid_acc, step=ei)
@@ -222,8 +227,6 @@ class EddlRecurrentModule:
     #<
 
     def validation(self):
-        print("*** VALIDATION ***")
-        return 0, 0
         ds = self.ds
         cnn = self.cnn
         cnn_out = eddl.getLayer(cnn, "cnn_out")
@@ -273,9 +276,10 @@ class EddlRecurrentModule:
     #<
 
     # uses a non-recurrent model for the predictions
-    def predict(self):
+    def predict(self, stage="test"):
         self.rnn2 = self.build_model(for_predictions=True)
         rnn = self.rnn2
+        
         cnn = self.cnn
         #> test on CPU (ISSUE related to eddl.getStates(.) when running on GPU)
         eddl.toCPU(cnn) 
@@ -311,7 +315,7 @@ class EddlRecurrentModule:
 
         eddl.set_mode(rnn, mode=0)
         ds = self.ds
-        ds.set_stage("test")
+        ds.set_stage(stage)
         dev = self.conf.dev
         n_tokens = self.conf.n_tokens
 
@@ -322,7 +326,7 @@ class EddlRecurrentModule:
         # print(f"2: {len(ds)}")
         ds.last_batch = "drop"
         bs = ds.batch_size
-        print(f"text generation, using batches of size: {bs}")
+        print(f"text generation on {stage}, using batches of size: {bs}")
         #< 
         
         #> for over test dataset
@@ -355,10 +359,20 @@ class EddlRecurrentModule:
                 break
         #< for i over batches in the test dataset
         t2 = time.perf_counter()
-        print(f"tested in {H.precisedelta(t2-t1)}")
+        print(f"text generation on {stage} in {H.precisedelta(t2-t1)}")
         bleu = bleu / len(ds)
-        self.run["test/bleu"] = bleu
-        self.run["test/time"] = t2 - t1
+        self.run[f"{stage}/bleu"] = bleu
+        self.run[f"{stage}/time"] = t2 - t1
+
+        rnn = None
+        self.rnn2 = None
+        gc.collect()
+
+        if self.conf.eddl_cs == "gpu":
+            print("moving modules back to GPU")
+            eddl.toGPU(self.rnn)
+            eddl.toGPU(self.cnn)
+
         return bleu, generated_word_idxs
     #< predict
 #< class
