@@ -86,6 +86,7 @@ class EddlCnnModule:
         out_layer_act = version or self.conf.cnn_out_layer
         print(f"cnn, output layer: {version}")
         res = None
+        print(f"adding classification layer, number of classes {self.ds.n_classes}")
         dense_layer = eddl.HeUniform(eddl.Dense(top_layer, self.ds.n_classes, name="out_dense"))
         dense_layer.initialize()
         if out_layer_act == "sigmoid":
@@ -131,8 +132,9 @@ class EddlCnnModule:
 
     def get_loss_name(self):
         name = "softmax_cross_entropy"
+        print("output layer:", self.conf.cnn_out_layer)
         if self.conf.cnn_out_layer == "sigmoid":
-            name = "binary_cross_entropy"
+            name = "mse"
         return name
     #<
 
@@ -193,13 +195,14 @@ class EddlCnnModule:
                 epoch_acc += acc
                     
                 if bi % 20 == 0:
-                    self.run["train/batch/loss"].log(loss)
-                    self.run["train/batch/acc"].log(acc)
+                    self.run["train/batch/loss"].log(loss, step=ei * len(batch_ids) + bi)
+                    self.run["train/batch/acc"].log(acc, step=ei * len(batch_ids) + bi)
             #< for over batches (1 epoch)
             
             epoch_end = time.perf_counter()
             # print(f"\t time: {H.precisedelta(t2-t1)}")
-            
+            print(f"training epoch completed in {H.precisedelta(epoch_end-t1)}")
+
             # loss
             epoch_loss = epoch_loss / len(batch_ids)
             epoch_acc = epoch_acc / len(batch_ids)
@@ -209,7 +212,7 @@ class EddlCnnModule:
 
             self.run["time/training/epoch"].log(epoch_end- t1, step=ei)
             expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
-            print(f"cnn expected training time (without early beaking): {H.humanize(expected_t)}")
+            print(f"cnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
 
             if (ei + 1 ) % self.conf["check_val_every"] != 0:
                 # SKIP VALIDATION
@@ -221,13 +224,13 @@ class EddlCnnModule:
             valid_loss, valid_acc = self.validation()
             val_end = time.perf_counter()
             #<
+            print(f"training+val epoch completed in {H.precisedelta(val_end-t1)}")
 
             self.run["validation/epoch/loss"].log(valid_loss, step=ei)
             self.run["validation/epoch/acc"].log(valid_acc, step=ei)
             self.run["time/validation/epoch"].log(val_end-val_start, step=ei)
             self.run["time/train+val/epoch"].log(val_end - t1, step=ei)
             
-            print(f"training epoch completed in {H.humanize(epoch_end-t1)}")
             
             #< patience and checkpoint
             if valid_loss < self.best_validation_loss:

@@ -184,8 +184,8 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 split_data: $(SPLIT_WITNESS)
 
 # -----------------------------------------------
-# softmax or sigmoid: LEAVE SOFTMAX
-CNN_OUT_LAYER=softmax
+# softmax or sigmoid:
+CNN_OUT_LAYER=sigmoid
 CNN_MODEL_OUT_FN = $(EXP_FLD)/cnn_$(CNN_OUT_LAYER)_eddl.onnx
 # the following without extension because several files are saved, with different exts
 REC_MODEL_OUT_FN = $(EXP_FLD)/rnn_rec.onnx
