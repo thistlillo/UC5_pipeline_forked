@@ -173,7 +173,7 @@ class EddlCnnModule:
         self.run["train/start_time"] = start_train_t
         for ei in range(n_epochs):
             print(f"{ei+1} / {n_epochs} starting, patience: {self.patience_run}/{self.patience} [kick-in: {self.patience_kick_in}]")
-            
+            ds.set_stage("train")
             ds.shuffle()
             eddl.reset_loss(cnn)
 
@@ -207,26 +207,32 @@ class EddlCnnModule:
             self.run["training/epoch/acc"].log(epoch_acc)
             #<
 
+            self.run["time/training/epoch"].log(epoch_end- t1, step=ei)
+            expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
+            print(f"cnn expected training time (without early beaking): {H.humanize(expected_t)}")
+
             if (ei + 1 ) % self.conf["check_val_every"] != 0:
                 # SKIP VALIDATION
                 continue
-            
+
+            # --------------------------------------------------
             # validation
             val_start = time.perf_counter()
             valid_loss, valid_acc = self.validation()
             val_end = time.perf_counter()
-            ds.set_stage("train")
             #<
 
-            self.run["validation/epoch/loss"].log(valid_loss)
-            self.run["validation/epoch/acc"].log(valid_acc)
-            self.run["time/validation/epoch"].log(val_end-val_start)
-            self.run["time/train+val/epoch"].log(val_end - t1)
-            self.run["time/training/epoch"].log(epoch_end- t1)
-
+            self.run["validation/epoch/loss"].log(valid_loss, step=ei)
+            self.run["validation/epoch/acc"].log(valid_acc, step=ei)
+            self.run["time/validation/epoch"].log(val_end-val_start, step=ei)
+            self.run["time/train+val/epoch"].log(val_end - t1, step=ei)
+            
+            print(f"training epoch completed in {H.humanize(epoch_end-t1)}")
+            
             #< patience and checkpoint
             if valid_loss < self.best_validation_loss:
                 # save checkpoint
+                print(f"saving checkpoint, epoch {ei}")
                 self.save_checkpoint()
                 # if patience is running, reset patience
                 if self.patience_run > (self.patience // 2):
@@ -243,7 +249,7 @@ class EddlCnnModule:
                 print(f"early breaking, patience {self.patience}")
                 early_stop = True
                 break 
-            #<
+            #< 
         #< epochs
 
         # log according to early_stop

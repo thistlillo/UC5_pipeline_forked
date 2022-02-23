@@ -16,10 +16,8 @@ import pyeddl.eddl as eddl
 
 import text.reports as reports
 from text.encoding import SimpleCollator, StandardCollator
+from C00_split import DataPartitioner
 
-
-# from C00_split import DataPartitioner
-from utils.data_partitioning  import DataPartitioner
 from utils.misc import Timer
 
 class Uc5Dataset:

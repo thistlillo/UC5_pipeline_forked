@@ -74,7 +74,6 @@ def normalize_n_images(tsv, max_images = 0, verbose=False):
     col = reports.k_image_filename  # we will look at the content of this column
     tsv[col] = tsv[col].apply(lambda x: adjust_n_images(x))
     
-    tsv["orig_n_images"] = tsv[reports.k_n_images]
     tsv[reports.k_n_images] = tsv.loc[:, reports.k_image_filename].apply(lambda x: len(x.split(reports.list_sep)))
 
     
@@ -273,7 +272,7 @@ def make_manual_corrections(tsv, verbose=False, debug=False):
 def fix_empty_and_noindexing(tsv, verbose):
     def process_column(s):
         if len(s) == 0 or ( s == "no indexing"):
-            return "misc"
+            return "empty"
         else:
             return s
         
@@ -319,14 +318,63 @@ def filter_terms(column, max_terms, verbose=False): # max_terms_per_rep
     term_count = frequency_in_column(column)
     accept_terms = list(term_count.keys())  # ordered on frequency
     rem = []
+    print("** terms:")
+    print(accept_terms)
     if len(accept_terms) > max_terms:
         rem = accept_terms[max_terms:]
         accept_terms = accept_terms[:max_terms]
-    
+    print(f"terms to remove {len(rem)} ({len(accept_terms)}, max terms: {max_terms})")
     column = column.apply(lambda x: filter_terms_in_col(x, accept_terms, term_count, verbose))
     return column
     
     # tsv[reports.k_auto_term] = tsv[reports.k_auto_term].apply(lambda x: sel_terms(x, auto_count))
+from collections import defaultdict
+
+def apply_term_freq_thresh(df, col_name, th):
+    print(f"using threshold {th} on {col_name}")
+    rep_ids = df.filename.tolist()
+    n_images = df. n_images.tolist()
+    labels = df[col_name].tolist()
+    cnt = defaultdict(int)
+    for l, n in zip(labels, n_images):
+        for l in l.split(reports.list_sep):
+            cnt[l] += n
+    to_remove = []
+    for l, c in cnt.items():
+        print(f"{l} occurs {c}")
+        if c < th:
+            to_remove.append(l)
+    
+    n_labels_kept = len(cnt) - len(to_remove)
+    print(f"{len(to_remove)}/{len(cnt)} labels will be removed, remaining {n_labels_kept}")
+    
+    for l in to_remove:
+        print(f"- removed: {l}")
+    
+    # for l, c in cnt.items():
+    #     if l not in to_remove:
+    #         print(f"label {l} kept: {c} occurrences")
+
+    def remove_labels(labs, rem):
+        labs2 = []
+        for l in labs.split(reports.list_sep):
+            if l not in rem:
+                labs2.append(l)
+        if len(labs2) == 0:
+            labs2.append("misc")
+        return reports.list_sep.join(labs2)
+
+    #> check
+    nc = df[col_name].apply(lambda x: remove_labels(x, to_remove))
+    ncl = nc.tolist()
+    c = set()
+    for ll in ncl:
+        for l in ll.split(reports.list_sep):
+            c.add(l)
+    print("verifying label filtering")
+    print(f" {len(c)} == {n_labels_kept + 1}")
+    assert len(c) == (n_labels_kept + 1)
+    return nc
 
 
 #********************************************
@@ -337,7 +385,8 @@ def main(raw_tsv, out_file,
         fill_normal_impression=True, 
         fill_normal_auto_tag=True, 
         keep_no_indexing=False, 
-        manual_corrections=True, 
+        manual_corrections=True,
+        min_term_frequency=50,
         verbose=False, 
         dev=False):
     """Script for cleaning the values extracted from the xml reports and stored in the file 'raw_tv'
@@ -381,8 +430,11 @@ def main(raw_tsv, out_file,
     tsv = drop_incomplete_reports(tsv, verbose=config["verbose"])
 
     
+    
     # step
-    normalize_n_images(tsv, int(config["keep_n_imgs"]), verbose=config["verbose"])
+    tsv["orig_n_images"] = tsv[reports.k_n_images]
+    if False:
+        normalize_n_images(tsv, int(config["keep_n_imgs"]), verbose=config["verbose"])
 
     # step
     if config["fill_normal_auto_tag"]:
@@ -407,9 +459,12 @@ def main(raw_tsv, out_file,
 
     
     print("parameters n_terms_per_rep IGNORED")   # config["n_terms_per_rep"], 
-    tsv[reports.k_auto_term] = filter_terms(tsv[reports.k_auto_term], config["n_terms"], verbose=config["verbose"])
-    tsv[reports.k_major_mesh] = filter_terms(tsv[reports.k_major_mesh], config["n_terms"], verbose=config["verbose"])
-       
+    # tsv[reports.k_auto_term] = filter_terms(tsv[reports.k_auto_term], config["n_terms"], verbose=config["verbose"])
+    # tsv[reports.k_major_mesh] = filter_terms(tsv[reports.k_major_mesh], config["n_terms"], verbose=config["verbose"])
+    
+
+
+
     # after all the previous steps, recompute number of terms
     def count_terms(x):
         if len(x) == 0:
@@ -417,8 +472,14 @@ def main(raw_tsv, out_file,
         terms = x.split(reports.list_sep)
         return len(terms)
 
+    
+
+    th = config["min_term_frequency"]
+    tsv[reports.k_auto_term] = apply_term_freq_thresh(tsv, reports.k_auto_term, th)
+    tsv[reports.k_major_mesh] = apply_term_freq_thresh(tsv, reports.k_major_mesh, th)
     tsv[reports.k_n_major_mesh] = tsv[reports.k_major_mesh].apply(lambda x: count_terms(x))  # len(reports.list_sep.split(x)) if len(x)>0 else 0)
     tsv[reports.k_n_auto_term] = tsv[reports.k_auto_term].apply(lambda x: len(x.split(reports.list_sep)) if len(x)>0 else 0)
+    
 
     # assert( max(tsv[reports.k_n_major_mesh] <= config["n_terms_per_rep"]) )
     # assert( max(tsv[reports.k_n_auto_term] <= config["n_terms_per_rep"]) )

@@ -203,6 +203,10 @@ class EddlRecurrentModule:
             self.run["training/epoch/acc"].log(epoch_acc)
             self.run["time/training/epoch"].log(epoch_end-t1)
             
+            expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
+            print(f"rnn expected training time (without early beaking): {H.humanize(expected_t)}")
+
+
             if (ei+1) % 50 == 0 or conf.dev:
                 print("** generating text during training")
                 self.predict(stage="valid")

@@ -20,8 +20,8 @@ $(warning using library $(LIBRARY))
 
 # -----------------------------------------------
 # EXPERIMENT AND MODEL IDENTIFIERS
-EXP_NAME = $(LIBRARY)_phi_std
-MODEL = $(LIBRARY)_phi
+EXP_NAME = $(LIBRARY)_ext
+MODEL = $(LIBRARY)_ext
 
 # -----------------------------------------------
 # FOLDERS & FILENAMES
@@ -43,7 +43,7 @@ TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results
 
 # prefix
-REPORTS = reports_phi
+REPORTS = reports_ext
 
 # *** *** D O W N L O A D
 $(BASE_DS_FLD)/NLMCXR_png.tgz: 
@@ -67,8 +67,9 @@ REPORTS_RAW_TSV = $(TSV_FLD)/$(REPORTS)_raw.tsv
 REPORTS_TSV = $(EXP_FLD)/$(REPORTS).tsv
 
 KEEP_N_TERMS = 100
-# number of tags (MeSH term) to keep per report
+# number of tags (MeSH term) to keep per report -- currently ignored
 N_TERMS_PER_REP = 4
+MIN_TERM_FREQ = 90
 # number of images to keep per report, 0 = all
 KEEP_N_IMGS = 0
 #! image size (square) expected by the CNN
@@ -85,7 +86,7 @@ $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
 	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ $(VERBOSITY_A) --stats
 
 # -----------------------------------------------
-$(EXP_FLD)/$(REPORTS).tsv: $(REPORTS_RAW_TSV) A01_prepare_tsv.py
+$(REPORTS_TSV): $(REPORTS_RAW_TSV) A01_prepare_tsv.py
 	@mkdir -p $(EXP_FLD)
 	$(PYTHON) A01_prepare_tsv.py --out_file=$@ --raw_tsv=$(REPORTS_RAW_TSV) \
 		--n_terms=$(KEEP_N_TERMS) --n_terms_per_rep=$(N_TERMS_PER_REP) \
@@ -315,6 +316,14 @@ cnn_classification_clean:
 	rm -f $(EXP_FLD)/cnn_classes.tsv
 
 D_pipeline_clean: | annotate_phi_clean cnn_classification_clean
+
+#
+# *** EXTENSIONS   E ***
+#
+
+cnn_ext:
+	$(PYTHON) E_cnn_ext.py --out_fn="cnn_ext.onnx" --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
+			--tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(PREPROC_IMG_SIZE) --dev=False
 
 # *** ***
 all: train_rec

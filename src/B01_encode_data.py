@@ -2,6 +2,7 @@
 # UC5, DeepHealth
 # Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
 #
+from collections import defaultdict
 import fire
 import json
 import nltk
@@ -11,7 +12,9 @@ import pickle
 from posixpath import join
 from tqdm import tqdm
 
+from text.reports import csv_sep, list_sep
 import text.reports as reports
+
 from text.vocabulary import Vocabulary
 
 re_word_tokenizer = nltk.RegexpTokenizer(r"\w+")
@@ -108,7 +111,7 @@ def image_based_ds(df, config):
         "enc_" + config["text_column"]: texts,
         "labels": labels
     })
-    df2.set_index(["filename"], inplace=True, drop=True)
+    #df2.set_index(["filename"], inplace=True, drop=True)
     return df2
 
 
@@ -144,6 +147,7 @@ def main(in_file,
     # 2: encode labels
     print("encoding image labels...")
     tsv["labels"], lab2i, i2lab = encode_image_labels(tsv[config["term_column"]], verbose )
+    
 
     # > check label encoding
     rows = [100, 102, 500]
@@ -180,6 +184,8 @@ def main(in_file,
     # 5: image-based dataset
     print("building image-based dataset")
     ib_ds = image_based_ds(tsv, config)
+    
+
     ib_ds.to_csv(config["out_img_tsv"], sep=reports.csv_sep, index=True)  # index set to image_filename
     print(f"saved tsv with the 'image_based' dataset, one image per row: {config['out_img_tsv']}")
     print(ib_ds.columns)
