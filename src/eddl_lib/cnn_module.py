@@ -134,7 +134,7 @@ class EddlCnnModule:
         name = "softmax_cross_entropy"
         print("output layer:", self.conf.cnn_out_layer)
         if self.conf.cnn_out_layer == "sigmoid":
-            name = "mse"
+            name = "binary_cross_entropy"
         return name
     #<
 
