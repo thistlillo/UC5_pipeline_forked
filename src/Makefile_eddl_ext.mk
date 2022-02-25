@@ -274,7 +274,7 @@ $(REC_MODEL_OUT_FN): $(CNN_MODEL_OUT_FN) C01_2_rec_mod_edll.py
 		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
 		--eddl_cs=$(EDDL_CS) --eddl_cs_mem=$(EDDL_CS_MEM) --gpu_id=$(GPU_ID_RNN) \
 		--check_val_every=$(CHECK_VAL_EVERY_RNN) \
-		--remote_log=$(REMOVE_LOG_RNN) \
+		--remote_log=$(REMOTE_LOG_RNN) \
 		--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C)
 # $(DEV_MODE_C)
 

@@ -46,15 +46,18 @@ class EddlRecurrentModule:
         self.rnn2 = None  # non-recurrent version of self.rnn
         
         self.run = self.init_neptune()
+        exit()
     #<
     
     def init_neptune(self):
+        print( self.conf["remote_log"])
         if self.conf["dev"]:
             neptune_mode = "debug"
         elif self.conf["remote_log"]:
             neptune_mode = "async"
         else:
             neptune_mode = "offline"
+        print(neptune_mode)
         run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
         run["description"] = "rnn_module"
         return run 
@@ -162,7 +165,7 @@ class EddlRecurrentModule:
         start_train_t = time.perf_counter()
 
         for ei in range(n_epochs):
-            print(f"> epoch {ei+1}/{n_epochs}")
+            print(f">>> epoch {ei+1}/{n_epochs}")
             ds.last_batch = conf.last_batch
             ds.set_stage("train")
             ds.shuffle()
@@ -208,7 +211,7 @@ class EddlRecurrentModule:
             print(f"rnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
 
 
-            if (ei+1) % 50 == 0 or conf.dev:
+            if False and ((ei+1) % 50 == 0 or conf.dev):
                 print("** generating text during training")
                 bleu, _ = self.predict(stage="valid")
                 self.run["trainin/bleu"].log(bleu, step=ei)

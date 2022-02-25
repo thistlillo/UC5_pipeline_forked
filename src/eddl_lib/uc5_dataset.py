@@ -204,7 +204,8 @@ class Uc5Dataset:
 
         # the code below is NOT USED: the first images in the dataset are used for filling
         #    the last batch
-        print(f"last batch policy: {self.last_batch}")
+        if self.verbose >= Uc5Dataset.VERBOSE_DEBUG:
+            print(f"last batch policy: {self.last_batch}")
         if (self.last_batch == "random") and ( (len(idxs) % self.batch_size) > 0 ):
             self.n_batches += 1
             if self.verbose > Uc5Dataset.VERBOSE_INFO:
