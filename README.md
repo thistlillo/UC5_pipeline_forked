@@ -6,6 +6,10 @@ The UC5 pipeline is composed by three stages A, B and C. The filename of the Pyt
 - A_pipeline:
   - `A00_prepare_raw_tsv.py`: processes the raw dataset and organize the information in a .tsv file;
   - `A01_prepare_tsv.py`: filters the data that will be used for building the model (e.g, it excluded reports without images).
+  - `A02_preprocess_images.py`: preprocess the dataset and builds a single pickle file with all the images resized to 300x300.
+  The preprocessing consists basically in normalizing the values, using the mean and standard deviation computed on the
+  Indiana Chest X-Ray dataset, and resizing. In order to use the output pickle file in subsequent steps, the flag `preload_images` needs to be set.
+
 - B_pipeline:
   - `B00_clean_text.py`: text cleaning;
   - `B01_encode_data.py`: data encoding for training the model.
@@ -35,7 +39,7 @@ The file `radiology_vocabulary_final.xlsx`, now part of the dataset, has been pu
 ## Instructions
 Set up the environment installing the correct libraries. You may find two requirement files for creating a conda environment:
 - `torch_lightning_reqs.txt`: for the PyTorch and the PyTorch-Lightning pipelines
-- `eddl_reqs.txt`: for the EDDL pipeline (not yet published)
+- `eddl_reqs.txt`: for the EDDL pipeline 
 
 In order to run an experiment:
 ```
@@ -47,6 +51,9 @@ make -f Makefile_[eddl|torch|lightning] all
 **IMPORTANT**
 Experiments are tracked remotely using the platform Neptune.ai (https://neptune.ai/).
 If you do not have an account, please set the variable REMOTE_LOG to False in the makefile.
+
+**IMPORTANT**
+Filenames containing the '_ext' substring are used for development purposes and might be unstable.
 
 **NOTE**
 The makefile (.mk) is automatically copied in the output folder of the experiment.

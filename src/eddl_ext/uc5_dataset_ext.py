@@ -16,7 +16,7 @@ import pyeddl.eddl as eddl
 
 import text.reports as reports
 from text.encoding import SimpleCollator, StandardCollator
-from C00_split import DataPartitioner
+from utils.data_partitioning  import DataPartitioner
 
 from utils.misc import Timer
 
@@ -111,13 +111,16 @@ class Uc5Dataset:
 
         # image preprocessing
         self.augs = ecvl.SequentialAugmentationContainer([
-                ecvl.AugDivBy255(),  #  ecvl.AugToFloat32(divisor=255.0),
-                ecvl.AugNormalize(122.75405603 / 255.0, 0.296964375 / 255.0),
-                ecvl.AugResizeDim([320, 320]),
+                ecvl.AugToFloat32(divisor=255.0),
+                ecvl.AugNormalize([0.48197903, 0.48197903, 0.48197903], [0.26261734, 0.26261734, 0.26261734]),
+                ecvl.AugResizeDim([300, 300]),
                 # ecvl.AugCenterCrop([256, 256]),  # XXX should be parametric, for resnet 18
                 # ecvl.AugCenterCrop([self.img_size, self.img_size]),  # XXX should be parametric, for resnet 18
                 ecvl.AugRandomCrop([self.img_size, self.img_size]),  # XXX should be parametric, for resnet 18
                 ])
+        self.preproc_augs = ecvl.SequentialAugmentationContainer([
+            ecvl.AugRandomCrop([self.img_size, self.img_size])
+        ])
         ecvl.AugmentationParam.SetSeed(self.seed)
 
         self.preproc_images = None
@@ -232,6 +235,10 @@ class Uc5Dataset:
     def get_image(self, img_id):
         if self.preproc_images is not None:
             img = self.preproc_images[img_id]
+            img = ecvl.Image.fromarray(img, "cxy", ecvl.ColorType.RGB)
+            ecvl.RearrangeChannels(img, img, "xyc")
+            self.preproc_augs.Apply(img)
+            ecvl.RearrangeChannels(img, img, "cxy")
             if self.dev_grayscale:
                 img = np.expand_dims(img[0, :, :], axis=0)
                 # print(f"GRAYSCALE? {self.dev_grayscale}, {img.shape}")

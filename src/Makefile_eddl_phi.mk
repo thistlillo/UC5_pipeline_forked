@@ -65,14 +65,17 @@ download: | $(BASE_DS_FLD)/text $(BASE_DS_FLD)/image
 #
 REPORTS_RAW_TSV = $(TSV_FLD)/$(REPORTS)_raw.tsv
 REPORTS_TSV = $(EXP_FLD)/$(REPORTS).tsv
-
+PP_IMG_SIZE=300
+PREPROC_IMAGES = $(TSV_FLD)/images_$(PP_IMG_SIZE).pickle
 KEEP_N_TERMS = 100
 # number of tags (MeSH term) to keep per report
 N_TERMS_PER_REP = 4
+MIN_TERM_FREQ = 90
+
 # number of images to keep per report, 0 = all
 KEEP_N_IMGS = 0
 #! image size (square) expected by the CNN
-PREPROC_IMG_SIZE = 224
+CNN_IMAGE_SIZE = 224
 
 VERBOSITY_A = False
 
@@ -88,13 +91,20 @@ $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
 $(EXP_FLD)/$(REPORTS).tsv: $(REPORTS_RAW_TSV) A01_prepare_tsv.py
 	@mkdir -p $(EXP_FLD)
 	$(PYTHON) A01_prepare_tsv.py --out_file=$@ --raw_tsv=$(REPORTS_RAW_TSV) \
-		--n_terms=$(KEEP_N_TERMS) --n_terms_per_rep=$(N_TERMS_PER_REP) \
+		--min_term_frequency=120 --n_terms=$(KEEP_N_TERMS) --n_terms_per_rep=$(N_TERMS_PER_REP) \
 		--keep_no_indexing=True --keep_n_imgs=$(KEEP_N_IMGS) --verbose=$(VERBOSITY_A)
 
+$(warning ${PREPROC_IMAGES})
+$(PREPROC_IMAGES): 
+	$(PYTHON) A02_preprocess_images.py --out_fn=$@ \ 
+		--img_fld=$(IMAGE_FLD) --img_size=$(PP_IMG_SIZE) \
+		--verbose=False 
 # -----------------------------------------------
 process_raw_dataset : $(REPORTS_RAW_TSV)
 
 reports_tsv:  $(REPORTS_TSV)
+
+preprocess_images: $(PREPROC_IMAGES)
 
 A_pipeline: | process_raw_dataset reports_tsv
 
@@ -184,7 +194,7 @@ split_data: $(SPLIT_WITNESS)
 
 # -----------------------------------------------
 # softmax or sigmoid: LEAVE SOFTMAX
-CNN_OUT_LAYER=softmax
+CNN_OUT_LAYER=sigmoid
 CNN_MODEL_OUT_FN = $(EXP_FLD)/cnn_$(CNN_OUT_LAYER)_eddl.onnx
 # the following without extension because several files are saved, with different exts
 REC_MODEL_OUT_FN = $(EXP_FLD)/rnn_rec.onnx
@@ -193,7 +203,6 @@ REC_MODEL_OUT_PRED_FN = $(subst .onnx,_pred.onnx,$(REC_MODEL_OUT_FN))
 REC_MODEL_OUT_FN_BIN = $(subst .onnx,.bin,$(REC_MODEL_OUT_FN))
 REC_MODEL_OUT_PRED_FN_BIN = $(subst .onnx,_pred.bin,$(REC_MODEL_OUT_FN))
 
-$(warning PREDICTIVE MODEL EXPECTED ${REC_MODEL_OUT_PRED_FN})
 
 CHECK_VAL_EVERY_CNN=10
 CHECK_VAL_EVERY_RNN=20
@@ -208,7 +217,7 @@ GPU_ID_RNN=[0,1,0,0]
 # LAST_BATCH in {drop, random}: if |last batch|<BATCH_SIZE, 
 # 		drop -> do not use the examples, random->choose the missing example randomly 
 LAST_BATCH = random
-LR = 0.01
+LR = 0.05
 LSTM_SIZE = 512
 MAX_SENTENCES = 5
 MAX_TOKENS = 12
@@ -232,7 +241,7 @@ REMOTE_LOG_RNN = True
 $(CNN_MODEL_OUT_FN): $(SPLIT_WITNESS) C01_1_cnn_mod_edll.py 
 	$(warning training target is $@)
 	$(PYTHON) C01_1_cnn_mod_edll.py train  --out_fn=$@ \
-		--preload_images=False --preproc_images=$(PREPROC_IMGS) \
+		--preload_images=False --preproc_images=$(PREPROC_IMAGES) \
 		--cnn_out_layer=$(CNN_OUT_LAYER) \
 		--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  \
 		--img_fld=$(IMAGE_FLD) --text_column=$(TEXT_COL) \
@@ -254,7 +263,7 @@ train_cnn_clean:
 # -----------------------------------------------
 $(REC_MODEL_OUT_FN): $(CNN_MODEL_OUT_FN) C01_2_rec_mod_edll.py
 	$(PYTHON)  C01_2_rec_mod_edll.py train --out_fn=$@ \
-		--preload_images=False --preproc_images=$(PREPROC_IMGS) \
+		--preload_images=False --preproc_images=$(PREPROC_IMAGES) \
 		--cnn_file=$(CNN_MODEL_OUT_FN) \
 		--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD) \
 		--img_fld=$(IMAGE_FLD) --term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) \
@@ -297,7 +306,7 @@ $(EXP_FLD)/annotated_phi.tsv: $(CNN_MODEL_OUT_FN) $(REC_MODEL_OUT_FN) D01_gen_te
 	$(PYTHON) D01_gen_text_phi.py --out_fn=$@ --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
 		--cnn_model=$(CNN_MODEL_OUT_FN) --rnn_model=$(REC_MODEL_OUT_FN) \
 		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
-		--tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(PREPROC_IMG_SIZE) --dev=$(DEV_MODE_D)
+		--tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(CNN_IMAGE_SIZE) --dev=$(DEV_MODE_D)
 
 annotate_phi: $(EXP_FLD)/annotated_phi.tsv
 
@@ -307,7 +316,7 @@ annotate_phi_clean:
 
 $(EXP_FLD)/cnn_classes.tsv: D02_cnn_classification.py
 	$(PYTHON) D02_cnn_classification.py --out_fn=$@ --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
-		--cnn_model=$(EXP_FLD)/cnn.onnx --tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(PREPROC_IMG_SIZE) --dev=False
+		--cnn_model=$(EXP_FLD)/cnn.onnx --tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(CNN_IMAGE_SIZE) --dev=False
 
 cnn_classification: $(EXP_FLD)/cnn_classes.tsv
 
@@ -330,4 +339,5 @@ clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean D_pipeline_clean
 	split_data train_cnn train_rnn C_pipeline C_pipeline_clean \
 	train_cnn_clean train_rnn_clean \
 	D_pipeline_clean annotate_phi  annotate_phi_clean \
-	cnn_classification cnn_classification_clean
+	cnn_classification cnn_classification_clean \
+	preprocess_images
