@@ -46,18 +46,15 @@ class EddlRecurrentModule:
         self.rnn2 = None  # non-recurrent version of self.rnn
         
         self.run = self.init_neptune()
-        exit()
     #<
     
     def init_neptune(self):
-        print( self.conf["remote_log"])
         if self.conf["dev"]:
             neptune_mode = "debug"
         elif self.conf["remote_log"]:
             neptune_mode = "async"
         else:
             neptune_mode = "offline"
-        print(neptune_mode)
         run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
         run["description"] = "rnn_module"
         return run 
