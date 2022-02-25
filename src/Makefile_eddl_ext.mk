@@ -194,7 +194,6 @@ $(SPLIT_WITNESS): $(ENC_WITNESS) C00_split.py
 	@mv -f $@.tmp $@
 
 split_data: $(SPLIT_WITNESS)
-
 # -----------------------------------------------
 # softmax or sigmoid:
 CNN_OUT_LAYER=sigmoid
@@ -265,7 +264,7 @@ train_cnn_clean:
 # -----------------------------------------------
 $(REC_MODEL_OUT_FN): $(CNN_MODEL_OUT_FN) C01_2_rec_mod_edll.py
 	$(PYTHON)  C01_2_rec_mod_edll.py train --out_fn=$@ \
-		--preload_images=False --preproc_images=$(PREPROC_IMAGES) \
+		--preload_images=True --preproc_images=$(PREPROC_IMAGES) \
 		--cnn_file=$(CNN_MODEL_OUT_FN) \
 		--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD) \
 		--img_fld=$(IMAGE_FLD) --term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) \
@@ -277,6 +276,7 @@ $(REC_MODEL_OUT_FN): $(CNN_MODEL_OUT_FN) C01_2_rec_mod_edll.py
 		--check_val_every=$(CHECK_VAL_EVERY_RNN) \
 		--remote_log=$(REMOVE_LOG_RNN) \
 		--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C)
+# $(DEV_MODE_C)
 
 train_rec: $(REC_MODEL_OUT_FN)
 

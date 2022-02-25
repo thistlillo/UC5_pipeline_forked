@@ -263,6 +263,7 @@ class EddlCnnModule:
             self.run["validation/acc"] = valid_acc
         else:
             self.cnn = self.load_checkpoint()
+            self.save()
             self.run["training/loss"] = best_training_loss
             self.run["training/acc"] = best_training_acc
             self.run["validation/loss"] = self.best_validation_loss
@@ -302,7 +303,7 @@ class EddlCnnModule:
     #<
 
     def save(self, filename=None):
-        filename = filename or self.conf.out_fn
+        filename = join( self.conf.exp_fld) if filename else self.conf.out_fn
         eddl.save_net_to_onnx_file(self.get_network(), filename)
         print(f"model saved, location: {filename}")
         return filename
@@ -314,6 +315,7 @@ class EddlCnnModule:
         print(f"saved checkpoint: {filename}")
     #<
     def load_checkpoint(self, filename="cnn_checkpoint.onnx"):
+        filename = join(self.conf.exp_fld, filename)
         print("loading last checkpoint")
         return self.build_cnn(self.load_model(filename))
     #<

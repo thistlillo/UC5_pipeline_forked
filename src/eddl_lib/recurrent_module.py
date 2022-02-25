@@ -191,8 +191,9 @@ class EddlRecurrentModule:
                 epoch_loss += loss
                 epoch_acc += acc
                 if bi % 20 == 0:
-                    self.run["train/batch/loss"].log(loss)
-                    self.run["train/batch/acc"].log(acc)
+                    step = ei*len(ds) + bi
+                    self.run["train/batch/loss"].log(loss, step=step)
+                    self.run["train/batch/acc"].log(acc, step=step)
             #< batch
             epoch_end = time.perf_counter()
             print(f"epoch completed in {H.precisedelta(epoch_end-t1)}")
@@ -204,12 +205,14 @@ class EddlRecurrentModule:
             self.run["time/training/epoch"].log(epoch_end-t1)
             
             expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
-            print(f"rnn expected training time (without early beaking): {H.humanize(expected_t)}")
+            print(f"rnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
 
 
             if (ei+1) % 50 == 0 or conf.dev:
                 print("** generating text during training")
-                self.predict(stage="valid")
+                bleu, _ = self.predict(stage="valid")
+                self.run["trainin/bleu"].log(bleu, step=ei)
+                self.save_checkpoint()
 
             if (ei+1) % conf.check_val_every != 0:
                 continue
@@ -226,7 +229,7 @@ class EddlRecurrentModule:
             self.run["time/train+val/epoch"].log(val_end - t1, step=ei)
         #< epoch
         end_train_t = time.perf_counter()
-       
+        self.save()
         print(f"rnn training complete: {H.precisedelta(end_train_t - start_train_t)}")
     #<
 
@@ -269,8 +272,13 @@ class EddlRecurrentModule:
         return self.rnn
     #<
 
+    def save_checkpoint(self, filename="rec_checkpoint.bin"):
+        filename = join( self.conf.exp_fld, filename)
+        eddl.save(self.get_network(), filename)
+        print(f"saved checkpoint for the recurrent model (.bin format): {filename}")
+
     def save(self, filename=None):
-        filename = filename or self.conf.out_fn
+        filename = join(self.conf.exp_fld, filename) if filename else self.conf.out_fn
         eddl.save_net_to_onnx_file(self.get_network(), filename)
         bin_out_fn = self.conf.out_fn.replace(".onnx", ".bin")
         eddl.save(self.get_network(), bin_out_fn)
