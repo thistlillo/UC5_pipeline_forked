@@ -17,7 +17,8 @@ train_augs = ecvl.SequentialAugmentationContainer([
             ])
 
 test_augs =  ecvl.SequentialAugmentationContainer([
-                ecvl.AugResizeDim([224, 224]),
+                ecvl.AugResizeDim([300, 300]),
+                ecvl.AugCenterCrop([224, 224]),
                 # ecvl.AugRandomCrop([size, size]),  # XXX should be parametric, for resnet 18
                 ecvl.AugToFloat32(divisor=255.0),
                 ecvl.AugNormalize(mean, std),

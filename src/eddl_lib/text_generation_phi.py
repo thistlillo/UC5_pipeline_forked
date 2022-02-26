@@ -11,6 +11,7 @@ from pyeddl.tensor import Tensor
 import pyecvl.ecvl as ecvl
 from tqdm import tqdm
 
+from eddl_lib.eddl_augmentations import test_augs
 from eddl_lib.recurrent_models import nonrecurrent_lstm_model, generate_text
 from text.encoding import SimpleCollator
 from text.metrics import compute_bleu_edll
@@ -25,13 +26,6 @@ class Bunch(dict):
 
 # --------------------------------------------------
 # 
-augs_f = lambda x: ecvl.SequentialAugmentationContainer([
-                ecvl.AugDivBy255(),  #  ecvl.AugToFloat32(divisor=255.0),
-                ecvl.AugNormalize(122.75405603 / 255.0, 0.296964375 / 255.0),
-                ecvl.AugResizeDim([300, 300]),
-                # ecvl.AugCenterCrop([256, 256]),  # XXX should be parametric, for resnet 18
-                ecvl.AugRandomCrop([x, x]),  # XXX should be parametric, for resnet 18
-                ])
 
 def load_image(path, augs=None):
     img = ecvl.ImRead(path)
@@ -104,7 +98,7 @@ def main(out_fn,
     print(f"!!! rnn weights read from: {fn} -- IMPORTANT: BIN FILE WAS USED")
     #<
     
-    augs = augs_f(args.img_size)
+    augs = test_augs
 
     #>
     print("> step 1: generate text for a single image")
