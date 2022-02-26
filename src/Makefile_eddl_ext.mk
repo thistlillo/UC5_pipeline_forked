@@ -221,6 +221,7 @@ LAST_BATCH = random
 LR = 0.05
 LSTM_SIZE = 512
 MAX_SENTENCES = 5
+# MAX_TOKENS INCLUDES BOS AND EOS, 12 means BOS + 10 tokens + EOS
 MAX_TOKENS = 12
 MOMENTUM = 0.9
 N_EPOCHS=10000
@@ -335,6 +336,16 @@ cnn_ext:
 	$(PYTHON) E_cnn_ext.py --out_fn="cnn_ext.onnx" --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
 			--tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(CNN_IMAGE_SIZE) --dev=False
 
+# ECVL YAML DATASET
+ECVL_DS= $(EXP_FLD)/ecvl_ds.yml
+ecvl_dataset.yml: $(SPLIT_WITNESS) E_build_ecvl_dataset_str.py E_build_ecvl_dataset_yml.py
+	$(PYTHON) E_build_ecvl_dataset_str.py --out_fn=$@ --description=$(EXP_NAME) \
+		--in_tsv=$(IMG_BASED_DS_ENC) --img_fld=$(IMAGE_FLD) --exp_fld=$(EXP_FLD) \
+		--add_text=True --n_tokens=$(MAX_TOKENS) \
+		--dev=True
+
+# ecvl_dataset: $(ECVL_DS)
+
 # *** ***
 all: train_rec
 
@@ -350,4 +361,4 @@ clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean D_pipeline_clean
 	train_cnn_clean train_rnn_clean \
 	D_pipeline_clean annotate_phi  annotate_phi_clean \
 	cnn_classification cnn_classification_clean \
-	preprocess_images
+	preprocess_images ecvl_dataset
