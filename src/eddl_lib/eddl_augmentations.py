@@ -9,16 +9,16 @@ std = [0.26261734, 0.26261734, 0.26261734]
 # std = np.array([0.26261734, 0.26261734, 0.26261734]) * 255
 
 
-train_augs = ecvl.SequentialAugmentationContainer([
+train_augs = lambda x: ecvl.SequentialAugmentationContainer([
                 ecvl.AugResizeDim([300, 300]),
-                ecvl.AugRandomCrop([224, 224]),  # XXX should be parametric, for resnet 18
+                ecvl.AugRandomCrop([x, x]),  # XXX should be parametric, for resnet 18
                 ecvl.AugToFloat32(divisor=255.0),
                 ecvl.AugNormalize(mean, std),
             ])
 
-test_augs =  ecvl.SequentialAugmentationContainer([
+test_augs =  lambda x: ecvl.SequentialAugmentationContainer([
                 ecvl.AugResizeDim([300, 300]),
-                ecvl.AugCenterCrop([224, 224]),
+                ecvl.AugCenterCrop([x, x]),
                 # ecvl.AugRandomCrop([size, size]),  # XXX should be parametric, for resnet 18
                 ecvl.AugToFloat32(divisor=255.0),
                 ecvl.AugNormalize(mean, std),
@@ -38,9 +38,9 @@ test_augs =  ecvl.SequentialAugmentationContainer([
 #                 ecvl.AugNormalize(mean, std),
 #             ])
 
-test_augs2 =  ecvl.SequentialAugmentationContainer([
+test_augs2 =  lambda x: ecvl.SequentialAugmentationContainer([
                 ecvl.AugResizeDim([300, 300]),
-                ecvl.AugCenterCrop([224, 224]),
+                ecvl.AugRandomCrop([x, x]),
                 # ecvl.AugRandomCrop([size, size]),  # XXX should be parametric, for resnet 18
                 ecvl.AugToFloat32(),
                 ecvl.AugNormalize(mean, std),

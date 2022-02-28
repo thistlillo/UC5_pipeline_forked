@@ -342,7 +342,7 @@ ecvl_dataset.yml: $(SPLIT_WITNESS) E_build_ecvl_dataset_str.py E_build_ecvl_data
 	$(PYTHON) E_build_ecvl_dataset_str.py --out_fn=$@ --description=$(EXP_NAME) \
 		--in_tsv=$(IMG_BASED_DS_ENC) --img_fld=$(IMAGE_FLD) --exp_fld=$(EXP_FLD) \
 		--add_text=True --n_tokens=$(MAX_TOKENS) \
-		--dev=True
+		--dev=False
 
 # ecvl_dataset: $(ECVL_DS)
 

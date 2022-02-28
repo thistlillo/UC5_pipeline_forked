@@ -3,7 +3,39 @@
 # Franco Alberto Cardillo (francoalberto.cardillo@ilc.cnr.it)
 #
 import fire
-from eddl_lib.cnn_module import EddlCnnModule
+from eddl_lib.cnn_module import EddlCnnModule, EddlCnnModule_ecvl
+
+def train_ecvl(
+        ecvl_ds,
+        exp_fld,
+        out_fn = "uc5_cnn.bin",
+        load_file = None,
+        img_size = 224,
+        seed = 8,
+        shuffle_seed = 9,
+        batch_size = 32,
+        n_epochs = 500,
+        check_val_every = 1,
+        eddl_cs = "cpu",
+        gpu_id = [2],
+        eddl_cs_mem = "full_mem",
+        lr = 0.002, 
+        momentum = 0.9,
+        gamma = 0.95,
+        patience = 10,
+        patience_kick_in = 50,
+        dev=False,
+        verbose=False,
+        debug=False,
+        remote_log=False):
+    
+    config = locals()
+    cnn_module = EddlCnnModule_ecvl(config)
+    cnn_module.train()
+    cnn_module.save()
+    print("train - done.")
+#
+
 
 
 def train(in_tsv,
@@ -89,5 +121,6 @@ def test(in_tsv,
 if __name__ == "__main__":
     fire.Fire({
         "train": train,
-        "test": test
+        "test": test,
+        "train_ecvl": train_ecvl
     })

@@ -15,7 +15,7 @@ from utils.data_partitioning import load_data_split, DataPartitioner
 collator = SimpleCollator()
 
 
-def main(out_fn, in_tsv, exp_fld, img_fld, n_tokens, img_size=224, description="none provided", seed=None, shuffle_seed=None, add_text=True, dev=False):
+def main(out_fn, in_tsv, exp_fld, img_fld, n_tokens, text=False, img_size=224, description="none provided", seed=None, shuffle_seed=None, add_text=True, dev=False):
     config = locals()
     if dev:
         print("build ecvl dataset, actual parameters:")
@@ -43,22 +43,34 @@ def main(out_fn, in_tsv, exp_fld, img_fld, n_tokens, img_size=224, description="
     d = {
         "name"        : "ECVL dataset for UC5",
         "description" : description,
-        "classes"     : list( set([int(l) for y in ds.labels.tolist() for l in y.split(list_sep)]) ),
+        "classes"     : [], 
         "images"      : [],
         "split"       : dict(training = list(range(n_train)), 
                             validation = list(range(n_train, n_train + n_valid)), 
                             test=list(range(n_train + n_valid, len(ds))))
     }
 
+    if text is False:
+        d["classes"] = list( set([int(l) for y in ds.labels.tolist() for l in y.split(list_sep)]) )
+
     imgs = []
     for ids in [train_ids, valid_ids, test_ids]:
-        imgs += [{
-                'location': os.path.abspath(join(img_fld, x[0])),
-                'label': [int(l.strip()) for l in x[1].split(list_sep)],
-                'values': collator.parse_and_collate(x[2], n_tokens),
-                } 
-                for x in ds.loc[ds.filename.isin(ids), ["filename", "labels", "enc_text"]].values
-            ]
+        if not text: 
+            imgs += [{
+                    'location': os.path.abspath(join(img_fld, x[0])),
+                    'label': [int(l.strip()) for l in x[1].split(list_sep)],
+                    'values': collator.parse_and_collate(x[2], n_tokens),
+                    } 
+                    for x in ds.loc[ds.filename.isin(ids), ["filename", "labels", "enc_text"]].values
+                ]
+        else:
+            imgs += [{
+                    'location': os.path.abspath(join(img_fld, x[0])),
+                    'values': [int(l.strip()) for l in x[1].split(list_sep)],
+                    'labels': collator.parse_and_collate(x[2], n_tokens),
+                    } 
+                    for x in ds.loc[ds.filename.isin(ids), ["filename", "labels", "enc_text"]].values
+                ]
     d["images"] = imgs
     print(yaml.dump(d, default_flow_style=None))
     
@@ -68,26 +80,34 @@ def main(out_fn, in_tsv, exp_fld, img_fld, n_tokens, img_size=224, description="
     print(f"dataset in: {out_fn}")
 
     # augs = ecvl.DatasetAugmentations(augs=[train_augs(img_size), test_augs(img_size), test_augs(img_size)])
-    augs = ecvl.DatasetAugmentations(augs=[train_augs, test_augs, test_augs])
-    drop_last = {"training": False, "validation": False, "test": False}
-    dataset = ecvl.DLDataset(out_fn, batch_size=32, augs=augs, ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, num_workers=2, queue_ratio_size=2, drop_last=drop_last)
-    
-    dataset.SetSplit(ecvl.SplitType.training)
-    print(f"training, n_ex: {len(dataset.GetSplit())}")
-    assert len(train_ids) == len(dataset.GetSplit())
-    dataset.SetSplit(ecvl.SplitType.test)
-    print(f"test, {len(dataset.GetSplit())}")
-    assert len(test_ids) == len(dataset.GetSplit())
-    dataset.SetSplit(ecvl.SplitType.validation)
-    print(f"validation, {len(dataset.GetSplit())}")
-    assert len(valid_ids) == len(dataset.GetSplit())
+    # augs = ecvl.DatasetAugmentations(augs=[train_augs(img_size), test_augs(img_size), test_augs(img_size)])
+    # if seed:
+    #     pass
+    #     # set seed of the augmentation container
+    # drop_last = {"training": False, "validation": False, "test": False}
 
-    dataset.SetSplit(ecvl.SplitType.training)
-    dataset.ResetAllBatches(shuffle=True)
-    dataset.Start()
-    _, b, c = dataset.GetBatch()
-    dataset.Stop()
+    # dataset = ecvl.DLDataset(out_fn, batch_size=2, augs=augs, ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, num_workers=2, queue_ratio_size=2, drop_last=drop_last)
+    # dataset.SetSplit(ecvl.SplitType.training)
+    # print(f"training, n_ex: {len(dataset.GetSplit())}")
+    # assert len(train_ids) == len(dataset.GetSplit())
+    # dataset.SetSplit(ecvl.SplitType.test)
+    # print(f"test, {len(dataset.GetSplit())}")
+    # assert len(test_ids) == len(dataset.GetSplit())
+    # dataset.SetSplit(ecvl.SplitType.validation)
+    # print(f"validation, {len(dataset.GetSplit())}")
+    # assert len(valid_ids) == len(dataset.GetSplit())
+
+    # dataset.SetSplit(ecvl.SplitType.training)
+    # dataset.ResetAllBatches(shuffle=True)
+    # dataset.Start()
+    # a, b, c = dataset.GetBatch()
+    # print(b.shape)
+    # print(c.shape)
+    # print(np.array(c))
+    # print(a[0].values_)
+    # dataset.Stop()
     print("done.")
+
 
 # --------------------------------------------------
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 import fire
+import numpy as np
 import os
 import pandas as pd
 from posixpath import join
 import pyecvl.ecvl as ecvl
+import pyeddl.eddl as eddl
 
 from eddl_lib.eddl_augmentations import train_augs, test_augs
 from text.reports import list_sep, csv_sep
@@ -93,26 +95,30 @@ def main(out_fn, in_tsv, exp_fld, img_fld, n_tokens, img_size=224, description="
     
     
     # augs = ecvl.DatasetAugmentations(augs=[train_augs(img_size), test_augs(img_size), test_augs(img_size)])
-    augs = ecvl.DatasetAugmentations(augs=[train_augs, test_augs, test_augs])
-    print(type(train_augs))
-    drop_last = {"training": False, "validation": False, "test": False}
+    # augs = ecvl.DatasetAugmentations(augs=[train_augs, test_augs, test_augs])
+    # print(type(train_augs))
+    # drop_last = {"training": False, "validation": False, "test": False}
 
-    dataset = ecvl.DLDataset(out_fn, batch_size=1, augs=augs, ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, num_workers=2, queue_ratio_size=2, drop_last=drop_last)
-    dataset.SetSplit(ecvl.SplitType.training)
-    print(f"training, n_ex: {len(dataset.GetSplit())}")
-    assert len(train_ids) == len(dataset.GetSplit())
-    dataset.SetSplit(ecvl.SplitType.test)
-    print(f"test, {len(dataset.GetSplit())}")
-    assert len(test_ids) == len(dataset.GetSplit())
-    dataset.SetSplit(ecvl.SplitType.validation)
-    print(f"validation, {len(dataset.GetSplit())}")
-    assert len(valid_ids) == len(dataset.GetSplit())
+    # dataset = ecvl.DLDataset(out_fn, batch_size=2, augs=augs, ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, num_workers=2, queue_ratio_size=2, drop_last=drop_last)
+    # dataset.SetSplit(ecvl.SplitType.training)
+    # print(f"training, n_ex: {len(dataset.GetSplit())}")
+    # assert len(train_ids) == len(dataset.GetSplit())
+    # dataset.SetSplit(ecvl.SplitType.test)
+    # print(f"test, {len(dataset.GetSplit())}")
+    # assert len(test_ids) == len(dataset.GetSplit())
+    # dataset.SetSplit(ecvl.SplitType.validation)
+    # print(f"validation, {len(dataset.GetSplit())}")
+    # assert len(valid_ids) == len(dataset.GetSplit())
 
-    dataset.SetSplit(ecvl.SplitType.training)
-    dataset.ResetAllBatches(shuffle=True)
-    dataset.Start()
-    a, b, c = dataset.GetBatch()
-    dataset.Stop()
+    # dataset.SetSplit(ecvl.SplitType.training)
+    # dataset.ResetAllBatches(shuffle=True)
+    # dataset.Start()
+    # a, b, c = dataset.GetBatch()
+    # print(b.shape)
+    # print(c.shape)
+    # print(np.array(c))
+    # print(a[0].values_)
+    # dataset.Stop()
     print("done.")
 
 # --------------------------------------------------
