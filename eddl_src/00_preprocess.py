@@ -265,15 +265,16 @@ def encode_image_labels(column, verbose):
 
 # --------------------------------------------------
 
-def image_based_ds(df, enc_text_col):
+def image_based_ds(df, img_fld, enc_text_col):
     image_filenames = []
     report_ids = []
     texts = []
     auto_labels = []
     mesh_labels = []
+    n_images = []
 
     for (i, row) in df.iterrows():
-        filenames_ = row["image_filename"].split(reports.list_sep)
+        filenames_ = [os.path.abspath(join(img_fld, fn)) for fn in row["image_filename"].split(reports.list_sep)]
 
         id_ = row["id"]
         text_ = row[enc_text_col]
@@ -285,7 +286,6 @@ def image_based_ds(df, enc_text_col):
             texts.append(text_)
             auto_labels.append(auto_labels_)
             mesh_labels.append(mesh_labels_)
-
     print(f"number of images: {len(image_filenames)}")
 
     df2 = pd.DataFrame({
@@ -365,7 +365,7 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
     json.dump(mesh_i2lab, open(join(out_fld, "mesh_index2lab.json"), "w") )
     #<
 
-    ib_ds = image_based_ds(df, enc_text_col=enc_text_col)
+    ib_ds = image_based_ds(df, img_fld, enc_text_col=enc_text_col)
 
     #>
     reports_fn = join(out_fld, "reports.tsv")
