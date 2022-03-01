@@ -145,7 +145,6 @@ def simplify_groups_of_tags(tsv):
     tsv[reports.k_major_mesh] = tsv[reports.k_major_mesh].apply(lambda x: simplify(x))
     # end
 
-
     
 # latest available zip file contains PNG images - this function is not needed any more
 def png2jpg_extensions(tsv, verbose=False):

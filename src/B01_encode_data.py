@@ -71,14 +71,6 @@ def build_vocabulary(column,
     if vocab_size > 0 or min_freq > 0:
         voc.set_n_words(max_words=vocab_size, min_freq=min_freq)  #, max_words=1000)
 
-    if debug:
-        text = column.loc[100]
-        e_text = voc.encode(text, n_sentences=20, sentence_length=30)
-        decoded = voc.decode(e_text)
-        print(text)
-        print(e_text)
-        print(decoded)
-
     return voc
 
 

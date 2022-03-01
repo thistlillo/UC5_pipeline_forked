@@ -107,7 +107,7 @@ def parse_images(soup):
             d[k_image_filename].append(fn + '.png')
         else:
             print('FATAL: NO img.url')
-            exit()
+            assert False
         
     return d
 

@@ -1,14 +1,19 @@
 from bs4 import BeautifulSoup
 from collections import defaultdict
 import fire
-import glob
+import json
+from numpy import count_nonzero as nnz
 import os
 import pandas as pd
+import pickle
 from posixpath import join
 from tqdm import tqdm
+
+from text.encoding import BaseTextEncoder
+import text.cleaning as text_cleaning
 import text.reports as reports
-import numpy as np
-from numpy import count_nonzero as nnz
+from text.vocabulary import Vocabulary
+
 
 # --------------------------------------------------
 def parse_single_report(filepath, verbose=False):
@@ -30,9 +35,9 @@ def finalize(df):
     df[reports.k_n_major_mesh] = df[reports.k_major_mesh].apply(lambda x: len(x))
     df[reports.k_major_mesh] = df[reports.k_major_mesh].apply(lambda x: reports.list_sep.join(x))
     df[reports.k_n_auto_term] = df[reports.k_auto_term].apply(lambda x: len(x))
-    df[reports.k_auto_term] = df[reports.k_auto_term].apply(lambda x: reports.list_sep.join(x))
+    df[reports.k_auto_term] = df[reports.k_auto_term].apply(lambda x: reports.list_sep.join(x))    
     df[reports.k_n_images] = df[reports.k_image_filename].apply(lambda x: len(x))
-    #df[reports.k_image_filename] = df[reports.k_images].apply(lambda x: reports.list_sep.join(x))
+    df[reports.k_image_filename] = df[reports.k_image_filename].apply(lambda x: reports.list_sep.join(x))
     return df
 
 def build_raw_tsv(txt_fld, out_fld):
@@ -43,7 +48,7 @@ def build_raw_tsv(txt_fld, out_fld):
 
 
 # --------------------------------------------------
-def clean(df):
+def raw_data_cleansing(df):
     #> drop reports with no images
     iii = df[reports.k_n_images] == 0
     df = df.drop(df[iii].index)
@@ -204,6 +209,96 @@ def apply_term_freq_thresh(df, col_name, th, dev=False):
     assert len(c) == (n_labels_kept + 1)
     return nc
 
+# --------------------------------------------------
+def build_vocabulary(column,
+                     vocab_size=0,
+                     min_freq=0,
+                     verbose=False,
+                     debug=False):
+
+    voc = Vocabulary(verbose=verbose, debug=debug)
+
+    for _, text in column.iteritems():
+        voc.add_text(text)
+
+    if verbose:
+        voc.print_stats()
+    if vocab_size > 0 or min_freq > 0:
+        voc.set_n_words(max_words=vocab_size, min_freq=min_freq)  #, max_words=1000)
+
+    return voc
+
+
+# --------------------------------------------------
+
+def image_labels_to_indexes(column, verbose=False):
+    u_labs = set()
+    total_terms = 0
+    normal_cnt = 0
+
+    for l in column.apply(lambda x: x.split(reports.list_sep)).to_list():
+        total_terms += len(l)
+        for t in l:
+            u_labs.add(t.strip())
+            if t == "normal":
+                normal_cnt += 1
+        
+    print("|'normal' labels|: ", normal_cnt)
+    print(f"|labels|: {total_terms}, |unique|: {len(u_labs)}")
+
+    i2l = { i : l for i, l in enumerate(sorted(u_labs)) }
+    l2i = { l : i for i, l in i2l.items() }
+
+    # useless check
+    for i in range(len(l2i)):
+        assert l2i[ i2l[i] ] == i
+    for l in l2i.keys():
+        assert i2l[ l2i[l] ] == l
+
+    return l2i, i2l
+
+def encode_image_labels(column, verbose):
+    lab2i, i2lab = image_labels_to_indexes( column, verbose )
+
+    enc_col = column.apply( lambda x: reports.list_sep.join([ str(lab2i[y]) for y in x.split(reports.list_sep)] ) )
+    return enc_col, lab2i, i2lab
+
+# --------------------------------------------------
+
+def image_based_ds(df, enc_text_col):
+    image_filenames = []
+    report_ids = []
+    texts = []
+    auto_labels = []
+    mesh_labels = []
+
+    for (i, row) in df.iterrows():
+        filenames_ = row["image_filename"].split(reports.list_sep)
+
+        id_ = row["id"]
+        text_ = row[enc_text_col]
+        auto_labels_ = row["auto_labels"]
+        mesh_labels_ = row["mesh_labels"]
+        for f in filenames_:
+            image_filenames.append(f)
+            report_ids.append(id_)
+            texts.append(text_)
+            auto_labels.append(auto_labels_)
+            mesh_labels.append(mesh_labels_)
+
+    print(f"number of images: {len(image_filenames)}")
+
+    df2 = pd.DataFrame({
+        "filename": image_filenames,
+        "report_id": report_ids,
+        enc_text_col: texts,
+        "auto_labels": auto_labels,
+        "mesh_labels": mesh_labels
+    })
+    #df2.set_index(["filename"], inplace=True, drop=True)
+    return df2
+
+
 
 # --------------------------------------------------
 def main(txt_fld = "../data/text",  # folder containing the xml reports
@@ -211,6 +306,8 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
         out_fld=".", 
         min_term_freq_mesh = 100,
         min_term_freq_auto = 100,
+        vocab_size = 1000,
+        min_token_freq = 2,
         force_rebuild=False): # path for the output file):
     
     if force_rebuild or not os.path.exists(join(out_fld, "reports_raw.tsv")):
@@ -220,8 +317,9 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
 
     df = pd.read_csv(join(out_fld, 'reports_raw.tsv'), sep=reports.csv_sep, na_filter=False)
     
+    #> raw data
     rows1 = df.shape[0]
-    df = clean(df)
+    df = raw_data_cleansing(df)
     df = make_manual_corrections(df)
     print(f"output df with {len(df)} rows, removed {rows1 - len(df)} reports")
 
@@ -237,9 +335,51 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
     df[reports.k_major_mesh] = apply_term_freq_thresh(df, reports.k_major_mesh, min_term_freq_mesh)
     df[reports.k_n_major_mesh] = df[reports.k_major_mesh].apply(lambda x: count_terms(x))  # len(reports.list_sep.split(x)) if len(x)>0 else 0)
     df[reports.k_n_auto_term] = df[reports.k_auto_term].apply(lambda x: len(x.split(reports.list_sep)) if len(x)>0 else 0)
-    
+    #<
 
+    # ---------------
 
+    #> text encoding
+    text_col = "text"
+    enc_text_col = "enc_" + text_col
 
+    df = text_cleaning.clean(df, ['findings','impression'], out_col=text_col)
+
+    vocabulary = build_vocabulary(column=df[text_col], vocab_size=vocab_size, min_freq=min_token_freq, verbose=False, debug=False)
+    pickle.dump(vocabulary, open(join(out_fld, "vocab.pickle"), "wb"))
+
+    txt_encoder = BaseTextEncoder(vocab=vocabulary)
+    df[enc_text_col] = df[text_col].apply(lambda x: txt_encoder.encode(x, as_string=True, insert_dots=True))
+    #<
+
+    #>
+
+    print("encoding image labels...")
+    print("- auto_term labels:")
+    df["auto_labels"], auto_lab2i, auto_i2lab = encode_image_labels(df["auto_term"], verbose=True )
+    print("- major_mesh labels:")
+    df["mesh_labels"], mesh_lab2i, mesh_i2lab = encode_image_labels(df["major_mesh"], verbose=True )
+    json.dump(auto_lab2i, open(join(out_fld, "auto_lab2index.json"), "w") )
+    json.dump(auto_i2lab, open(join(out_fld, "auto_index2lab.json"), "w") )
+    json.dump(mesh_lab2i, open(join(out_fld, "mesh_lab2index.json"), "w") )
+    json.dump(mesh_i2lab, open(join(out_fld, "mesh_index2lab.json"), "w") )
+    #<
+
+    ib_ds = image_based_ds(df, enc_text_col=enc_text_col)
+
+    #>
+    reports_fn = join(out_fld, "reports.tsv")
+    ib_fn = join(out_fld, "img_reports.tsv")
+    df.to_csv(reports_fn, index="id", sep=reports.csv_sep)
+    ib_ds.to_csv(ib_fn, index="image_filename", sep=reports.csv_sep)
+    #< 
+
+    print(f"report-based csv file: {df.shape}: {reports_fn}")
+    print(f"image-based csv file: {ib_ds.shape}: {ib_fn}")
+    print("done.")
+#
+
+# --------------------------------------------------
 if __name__ == "__main__":
     fire.Fire(main)
+
