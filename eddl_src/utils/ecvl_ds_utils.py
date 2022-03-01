@@ -24,8 +24,8 @@ def to_img_ecvl_yml_str(ds, train_idxs, valid_idxs, test_idxs, descr="n/a"):
     out.append("")
     out.append("images:")
     for fn, lab in zip(ds.filename, ds.labels):
-        out.append(f"- location: {fn}")
-        out.append(f"  labels: {lab}")
+        out.append(f"  - location: {fn}")
+        out.append(f"    label: {lab}")
     out.append("")
     out.append("split:")
     out.append(f"  training: {repr(train_idxs)}")

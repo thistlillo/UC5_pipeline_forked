@@ -198,8 +198,8 @@ class EddlCnnModule_ecvl:
                 epoch_acc += acc
                     
                 if bi % 20 == 0:
-                    self.run["train/batch/loss"].log(loss, step=ei * len(batch_ids) + bi)
-                    self.run["train/batch/acc"].log(acc, step=ei * len(batch_ids) + bi)
+                    self.run["train/batch/loss"].log(loss, step=ei * n_training_batches + bi)
+                    self.run["train/batch/acc"].log(acc, step=ei * n_training_batches + bi)
             #< for over batches (1 epoch)
             ds.Stop()
             epoch_end = time.perf_counter()

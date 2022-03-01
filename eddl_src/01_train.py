@@ -5,7 +5,7 @@ from posixpath import join
 import pyecvl.ecvl as ecvl
 from sklearn.model_selection import ParameterGrid
 from utils.data_partitioning import make_splits
-from utils.ecvl_str_build import to_img_ecvl_yml_str
+from utils.ecvl_ds_utils import to_img_ecvl_yml_str
 
 from neural_nets.cnn_module import EddlCnnModule_ecvl
 from neural_nets.eddl_augmentations import train_augs, test_augs
@@ -74,7 +74,7 @@ def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n
     print(f"input parameters lead to |runs|= {len(parameters)}")
     #<
     
-    drop_last = {"training": False, "validation": False, "test": False}
+    drop_last = {"training": True, "validation": False, "test": False}
     augs = ecvl.DatasetAugmentations(augs=[train_augs(img_size), test_augs(img_size), test_augs(img_size)])
     if seed is not None:
         # set seed for the augmentations
