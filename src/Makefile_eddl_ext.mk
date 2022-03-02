@@ -316,10 +316,15 @@ annotate_phi: $(EXP_FLD)/annotated_phi.tsv
 annotate_phi_clean:
 	rm -f $(EXP_FLD)/annotated_phi.tsv
 
-
 $(EXP_FLD)/cnn_classes.tsv: D02_cnn_classification.py
 	$(PYTHON) D02_cnn_classification.py --out_fn=$@ --exp_fld=$(EXP_FLD) --img_fld=$(IMAGE_FLD)\
 		--cnn_model=$(EXP_FLD)/cnn.onnx --tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(CNN_IMAGE_SIZE) --dev=False
+
+
+../experiments_eddl/eddl_ext_CNN_20tags/cnn_classes.tsv: D02_cnn_classification.py
+	$(PYTHON) D02_cnn_classification.py --out_fn=$@ --exp_fld=../experiments_eddl/eddl_ext_CNN_20tags --img_fld=$(IMAGE_FLD)\
+		--cnn_model=../experiments_eddl/eddl_ext_CNN_20tags/cnn_checkpoint.onnx --tsv_file=../experiments_eddl/eddl_ext_CNN_20tags/img_reports_ext_enc.tsv --img_size=$(CNN_IMAGE_SIZE) --dev=False
+
 
 cnn_classification: $(EXP_FLD)/cnn_classes.tsv
 

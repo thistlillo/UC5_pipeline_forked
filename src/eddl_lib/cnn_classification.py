@@ -26,19 +26,20 @@ class Bunch(dict):
 
 # --------------------------------------------------
 # 
-augs_f = lambda x: ecvl.SequentialAugmentationContainer([
-                ecvl.AugDivBy255(),  #  ecvl.AugToFloat32(divisor=255.0),
-                ecvl.AugNormalize(122.75405603 / 255.0, 0.296964375 / 255.0),
-                ecvl.AugResizeDim([300, 300]),
-                # ecvl.AugCenterCrop([256, 256]),  # XXX should be parametric, for resnet 18
-                ecvl.AugRandomCrop([x, x]),  # XXX should be parametric, for resnet 18
-                ])
+from eddl_lib.eddl_augmentations import train_augs, test_augs
+# augs_f = lambda x: ecvl.SequentialAugmentationContainer([
+#                 ecvl.AugDivBy255(),  #  ecvl.AugToFloat32(divisor=255.0),
+#                 ecvl.AugNormalize(122.75405603 / 255.0, 0.296964375 / 255.0),
+#                 ecvl.AugResizeDim([300, 300]),
+#                 # ecvl.AugCenterCrop([256, 256]),  # XXX should be parametric, for resnet 18
+#                 ecvl.AugRandomCrop([x, x]),  # XXX should be parametric, for resnet 18
+#                 ])
 
 def load_image(path, augs=None):
     img = ecvl.ImRead(path)
-    ecvl.RearrangeChannels(img, img, "cxy")
     if augs:
         augs.Apply(img)
+    ecvl.RearrangeChannels(img, img, "cxy")
     return img
 #<
 
@@ -79,7 +80,7 @@ def main(out_fn,
     eddl.set_mode(cnn, 0)
     print("cnn model built successfully")
     
-    augs = augs_f(args.img_size)
+    augs = test_augs(args.img_size)
 
     print(f"> processing {tsv_file}")
     tsv = pd.read_csv(tsv_file, sep=csv_sep)
