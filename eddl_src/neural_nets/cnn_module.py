@@ -29,6 +29,7 @@ class EddlCnnModule_ecvl:
     def __init__(self, dataset, config, name=""):
         self.ds = dataset
         self.n_classes = len(self.ds.classes_)
+       
         print(f"number of classes (output layer): {self.n_classes}")
         self.conf = Bunch(**config)
         self.name = name
@@ -80,8 +81,13 @@ class EddlCnnModule_ecvl:
             print("creating computing service:")
             print(f"computing service: {eddl_cs}")
             print(f"memory: {eddl_mem}")
+
+        if self.conf.batch_size == 32:
+            lsb = 1
+        else:
+            lsb = 1
         
-        return eddl.CS_GPU(g=self.conf.gpu_id, mem=self.conf.eddl_cs_mem) if eddl_cs == 'gpu' else eddl.CS_CPU(th=2, mem=eddl_mem)
+        return eddl.CS_GPU(g=self.conf.gpu_id, mem=self.conf.eddl_cs_mem, lsb=lsb) if eddl_cs == 'gpu' else eddl.CS_CPU(th=2, mem=eddl_mem)
     #< 
 
     def download_base_cnn(self, top=True):
@@ -221,7 +227,7 @@ class EddlCnnModule_ecvl:
             self.run[f"{self.name}-training/epoch/acc"].log(epoch_acc)
             #<
 
-            self.run["{self.name}-time/training/epoch"].log(epoch_end- t1, step=ei)
+            self.run[f"{self.name}-time/training/epoch"].log(epoch_end- t1, step=ei)
             expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
             print(f"cnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
 

@@ -46,7 +46,7 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
 # --------------------------------------------------
 
 def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n_epochs=200, batch_size=32, optimizer=["adam"], 
-        learning_rate=[0.001], momentum=[0.9], patience=5, patience_kick_in=200, 
+        learning_rate=[0.01], momentum=[0.9], patience=5, patience_kick_in=200, 
         check_val_every=10, seed=1, shuffle_seed=2, description="n/a",
         gpu_id=[1], eddl_cs_mem="full_mem", verbose=False, dev=False, remote_log=None):
     

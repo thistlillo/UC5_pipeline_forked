@@ -46,7 +46,7 @@ def load_image(path, augs=None):
 # --------------------------------------------------
 
 # simplified version of EddlRecurrentModule.predict(.)
-def classify(img, cnn, dev=False):
+def classify(img, cnn, theta = 0.5, dev=False):
     cnn_out = eddl.getLayer(cnn, "cnn_out")
     cnn_top = eddl.getLayer(cnn, "top")
     # -
@@ -54,9 +54,12 @@ def classify(img, cnn, dev=False):
     eddl.forward(cnn, [Tensor.fromarray(a)])
     # - 
     cnn_semantic = eddl.getOutput(cnn_out)
-    classes = np.array(cnn_semantic)
-    c = np.argmax(classes, axis=-1)
-    return c
+    classes = np.squeeze(np.array(cnn_semantic))
+    print(classes.shape)
+    classes = np.where(classes > theta)
+    
+    # c = np.argmax(classes, axis=-1)
+    return classes
 #<
 
 # --------------------------------------------------
@@ -76,7 +79,7 @@ def main(out_fn,
     print(f"trained cnn read from: {args.cnn_model}")
     print(f" - cnn input shape {cnn.layers[0].input.shape}")
     print(f" - cnn output shape {cnn.layers[-1].output.shape}")
-    eddl.build(cnn, eddl.adam(0.01), ["softmax_cross_entropy"], ["accuracy"], eddl.CS_CPU(), init_weights=False)
+    eddl.build(cnn, eddl.adam(0.01), ["softmax_cross_entropy"], ["accuracy"], eddl.CS_GPU(g=[1,0,0,0], mem="full_mem"), init_weights=False)
     eddl.set_mode(cnn, 0)
     print("cnn model built successfully")
     
@@ -99,6 +102,7 @@ def main(out_fn,
     if not args.dev:
         assert sum([len(l) for l in id_lists]) == tsv.shape[0]
     
+    tsv["cnn_tags"] = np.nan
     for p, l in zip(partitions, id_lists):
         print(f"processing {p}, len: {len(l)}")
         indexes = tsv.filename.isin(l)
@@ -106,14 +110,15 @@ def main(out_fn,
         labels = tsv.loc[indexes, "labels"].tolist()
         gen_texts = []
         gen_word_idxs = []
-
+        out_tags = []
         for idx, fn in enumerate(filenames):
             img = load_image(join(args.img_fld, fn), augs=augs)
             c = classify(img, cnn)
             print(f"target: {labels[idx]}, predicted: {c}")
-            
+            out_tags.append(";".join(str(t) for t in c))
         # tsv.loc[indexes, "gen_text"] = gen_texts
-        
+        tsv.loc[indexes, "out_tags"] = out_tags
+    
     tsv.to_csv(args.out_fn, sep=csv_sep)
     print(f"saved: {args.out_fn}")
     print("done.")
