@@ -29,7 +29,9 @@ dataset:
 
 train_cnn:
 	$(warning training cnn, folder: ${EXP_FLD})
-	$(PYTHON) 01_train.py train_cnn --exp_fld=$(EXP_FLD) --seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED)
+	$(PYTHON) 01_train.py train_cnn --exp_fld=$(EXP_FLD) \
+		--n_epochs=1000 --remote_log=True \
+		--seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED)
 
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv

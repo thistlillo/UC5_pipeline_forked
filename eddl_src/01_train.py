@@ -48,8 +48,9 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
 # --------------------------------------------------
 
 def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n_epochs=200, batch_size=[32, 64, 128], optimizer=["adam"], 
-        learning_rate=[0.05], momentum=[0.9], patience=5, patience_kick_in=200, seed=1, shuffle_seed=2, 
-        gpu_id=[[2], [2,3]], eddl_cs_mem="full_mem", verbose=False, dev=False, remote_log=None):
+        learning_rate=[0.001], momentum=[0.9], patience=5, patience_kick_in=200, 
+        check_val_every=10, seed=1, shuffle_seed=2, 
+        gpu_id=[[2]], eddl_cs_mem="full_mem", verbose=False, dev=False, remote_log=None):
     
     #>
     img_size = 224  # make this a param when it is possible to select the backbone cnn
@@ -64,11 +65,13 @@ def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n
         "patience": [patience],
         "patience_kick_in": [patience_kick_in],
         "verbose": [verbose],
-        "dev": [True],
+        "dev": [dev],
         "eddl_cs": ["gpu" if gpu_id else "cpu"],
         "eddl_cs_mem": [eddl_cs_mem],
-        "remove_log": [remote_log],
+        "remote_log": [remote_log],
         "out_fn": [out_fn],
+        "check_val_every": [check_val_every],
+        "exp_fld": [exp_fld]
     }
     parameters = ParameterGrid(grid)
     print(f"input parameters lead to |runs|= {len(parameters)}")

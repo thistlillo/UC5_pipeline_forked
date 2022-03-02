@@ -66,6 +66,7 @@ class EddlCnnModule_ecvl:
             neptune_mode = "async"
         else:
             neptune_mode = "offline"
+        print(f"NEPTUNE REMOTE LOG, mode set to {neptune_mode}")
         run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
         run["description"] = "cnn_module"
         return run 
@@ -178,7 +179,9 @@ class EddlCnnModule_ecvl:
         for ei in range(n_epochs):
             print(f"{ei+1} / {n_epochs} starting, patience: {self.patience_run}/{self.patience} [kick-in: {self.patience_kick_in}]")
             ds.SetSplit(ecvl.SplitType.training)
+            ds.ResetBatch(shuffle=True)
             ds.Start()
+            
             eddl.reset_loss(cnn)
 
             t1 = time.perf_counter()
@@ -186,12 +189,13 @@ class EddlCnnModule_ecvl:
             for bi in range(n_training_batches):
                 if (bi + 1) % 50 == 0:
                     print(f"batch {bi+1}/{n_training_batches}")
+                
                 _, X, Y = ds.GetBatch()
 
                 #X = Tensor.fromarray(images)
                 #Y = Tensor.fromarray(labels)
                 eddl.train_batch(cnn, [X], [Y])
-
+                
                 loss = eddl.get_losses(cnn)[0]
                 acc = eddl.get_metrics(cnn)[0]
                 epoch_loss += loss
@@ -201,6 +205,7 @@ class EddlCnnModule_ecvl:
                     self.run["train/batch/loss"].log(loss, step=ei * n_training_batches + bi)
                     self.run["train/batch/acc"].log(acc, step=ei * n_training_batches + bi)
             #< for over batches (1 epoch)
+            
             ds.Stop()
             epoch_end = time.perf_counter()
             # print(f"\t time: {H.precisedelta(t2-t1)}")
@@ -280,18 +285,21 @@ class EddlCnnModule_ecvl:
         ds = self.ds
         cnn = self.get_network()
         ds.SetSplit(ecvl.SplitType.validation)
+        # ds.ResetBatch(shuffle=True)
         n_batches = ds.GetNumBatches()
         
         loss = 0
         acc = 0
+        ds.Start()
         for bi in range(n_batches):
-            _, X, Y, _ = ds.GetBatch()
+            _, X, Y = ds.GetBatch()
             #X = Tensor.fromarray(images)
             #Y = Tensor.fromarray(labels)
             eddl.eval_batch(cnn, [X], [Y])
             
             loss += eddl.get_losses(cnn)[0]
             acc += eddl.get_metrics(cnn)[0]
+        ds.Stop()
         loss = loss / n_batches
         acc = acc / n_batches
 
