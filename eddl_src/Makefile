@@ -30,8 +30,9 @@ dataset:
 train_cnn:
 	$(warning training cnn, folder: ${EXP_FLD})
 	$(PYTHON) 01_train.py train_cnn --exp_fld=$(EXP_FLD) \
-		--n_epochs=1000 --remote_log=True \
-		--seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED)
+		--n_epochs=1000 --remote_log=True --batch_size=[32,64,128] \
+		--seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED) --verbose=True --dev=False \
+		--gpu_id=[0,0,1,1] --description="two gpus, sigmoid, resnet, varying batch size"
 
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv

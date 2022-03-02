@@ -12,9 +12,7 @@ from neural_nets.eddl_augmentations import train_augs, test_augs
 
 def to_list(value):
     return [value] if type(value) is not list else value
-
-
-
+   
 
 def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, shuffle_seed=1, labels="mesh", descr="n/a", dev=False):
     ds = pd.read_csv( join(exp_fld, "img_reports.tsv"), sep="\t", index_col=0)
@@ -47,19 +45,19 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
 
 # --------------------------------------------------
 
-def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n_epochs=200, batch_size=[32, 64, 128], optimizer=["adam"], 
+def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n_epochs=200, batch_size=32, optimizer=["adam"], 
         learning_rate=[0.001], momentum=[0.9], patience=5, patience_kick_in=200, 
-        check_val_every=10, seed=1, shuffle_seed=2, 
-        gpu_id=[[2]], eddl_cs_mem="full_mem", verbose=False, dev=False, remote_log=None):
+        check_val_every=10, seed=1, shuffle_seed=2, description="n/a",
+        gpu_id=[1], eddl_cs_mem="full_mem", verbose=False, dev=False, remote_log=None):
     
     #>
     img_size = 224  # make this a param when it is possible to select the backbone cnn
     grid = {
-        "batch_size": batch_size,
-        "optimizer": optimizer,
-        "learning_rate": learning_rate,
-        "momentum": momentum,
-        "gpu_id": gpu_id,
+        "batch_size": to_list(batch_size),
+        "optimizer": to_list(optimizer),
+        "learning_rate": to_list(learning_rate),
+        "momentum": to_list(momentum),
+        "gpu_id": [gpu_id],
         # required by the module 
         "n_epochs": [n_epochs],
         "patience": [patience],
@@ -71,7 +69,8 @@ def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n
         "remote_log": [remote_log],
         "out_fn": [out_fn],
         "check_val_every": [check_val_every],
-        "exp_fld": [exp_fld]
+        "exp_fld": [exp_fld],
+        "description": [description]
     }
     parameters = ParameterGrid(grid)
     print(f"input parameters lead to |runs|= {len(parameters)}")
@@ -96,13 +95,20 @@ def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n
         return dataset
     #<
 
+    import os
+    from yaml import dump
     for i, params in enumerate(parameters):
         print(f"{i+1}/{len(parameters)} runs")
-        print(params)
+        run_fld = join(exp_fld, f"run_{i}")
+        os.makedirs(run_fld, exist_ok=True)
+        params["out_fld"] = run_fld
+        with open(join(run_fld, "config.yml"), "w") as fout:
+            dump(params, fout, default_flow_style=None)
         dataset = load_ecvl_dataset(ds_fn, params["batch_size"], gpu=gpu_id)
         cnn_module = EddlCnnModule_ecvl(dataset, params, name=str(i))
         cnn_module.train()
-
+        cnn_module.delete_nn()
+        del cnn_module
     
     
         

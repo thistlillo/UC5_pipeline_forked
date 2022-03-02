@@ -26,7 +26,7 @@ class Bunch(dict):
     
 
 class EddlCnnModule_ecvl:
-    def __init__(self, dataset, config, name):
+    def __init__(self, dataset, config, name=""):
         self.ds = dataset
         self.n_classes = len(self.ds.classes_)
         print(f"number of classes (output layer): {self.n_classes}")
@@ -36,12 +36,6 @@ class EddlCnnModule_ecvl:
         self.verbose = self.conf.verbose
         self.img_size = 224
         # set seed of the augmentation container
-        
-
-       
-        # version is irrelevant for cnn training
-        # "simple" means the text part will not be provided as seq of sentences. 
-
         self.layer_names = None
         
         if "load_file" in self.conf:
@@ -59,6 +53,10 @@ class EddlCnnModule_ecvl:
         self.best_validation_acc = -1_000_000
     #<
 
+    def delete_nn(self):
+        del self.cnn
+    #<
+
     def init_neptune(self):
         if self.conf["dev"]:
             neptune_mode = "debug"
@@ -68,7 +66,9 @@ class EddlCnnModule_ecvl:
             neptune_mode = "offline"
         print(f"NEPTUNE REMOTE LOG, mode set to {neptune_mode}")
         run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
-        run["description"] = "cnn_module"
+        run["description"] = self.conf.description if "description" in self.conf else "cnn_module"
+        run["configuration"] = self.conf
+        run["num image classes"] = self.n_classes
         return run 
     #<
    
@@ -160,6 +160,7 @@ class EddlCnnModule_ecvl:
         return self.cnn
     #<
 
+
     def train(self):
         ds = self.ds
         cnn = self.get_network()
@@ -175,8 +176,10 @@ class EddlCnnModule_ecvl:
 
         early_stop = False  # set to True if the patience threshold is reached during training
         start_train_t = time.perf_counter()
-        self.run["train/start_time"] = start_train_t
+        self.run[f"{self.name}-train/start_time"] = start_train_t
         for ei in range(n_epochs):
+            if self.conf.dev and ei == 2:
+                break
             print(f"{ei+1} / {n_epochs} starting, patience: {self.patience_run}/{self.patience} [kick-in: {self.patience_kick_in}]")
             ds.SetSplit(ecvl.SplitType.training)
             ds.ResetBatch(shuffle=True)
@@ -202,8 +205,8 @@ class EddlCnnModule_ecvl:
                 epoch_acc += acc
                     
                 if bi % 20 == 0:
-                    self.run["train/batch/loss"].log(loss, step=ei * n_training_batches + bi)
-                    self.run["train/batch/acc"].log(acc, step=ei * n_training_batches + bi)
+                    self.run[f"{self.name}-train/batch/loss"].log(loss, step=ei * n_training_batches + bi)
+                    self.run[f"{self.name}-train/batch/acc"].log(acc, step=ei * n_training_batches + bi)
             #< for over batches (1 epoch)
             
             ds.Stop()
@@ -214,15 +217,15 @@ class EddlCnnModule_ecvl:
             # loss
             epoch_loss = epoch_loss / n_training_batches
             epoch_acc = epoch_acc / n_training_batches
-            self.run["training/epoch/loss"].log(epoch_loss)
-            self.run["training/epoch/acc"].log(epoch_acc)
+            self.run[f"{self.name}-training/epoch/loss"].log(epoch_loss)
+            self.run[f"{self.name}-training/epoch/acc"].log(epoch_acc)
             #<
 
-            self.run["time/training/epoch"].log(epoch_end- t1, step=ei)
+            self.run["{self.name}-time/training/epoch"].log(epoch_end- t1, step=ei)
             expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
             print(f"cnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
 
-            if (ei + 1 ) % self.conf["check_val_every"] != 0:
+            if (not self.conf.dev) and ( (ei + 1 ) % self.conf["check_val_every"] != 0 ):
                 # SKIP VALIDATION
                 continue
 
@@ -234,10 +237,10 @@ class EddlCnnModule_ecvl:
             #<
             print(f"training+val epoch completed in {H.precisedelta(val_end-t1)}")
 
-            self.run["validation/epoch/loss"].log(valid_loss, step=ei)
-            self.run["validation/epoch/acc"].log(valid_acc, step=ei)
-            self.run["time/validation/epoch"].log(val_end-val_start, step=ei)
-            self.run["time/train+val/epoch"].log(val_end - t1, step=ei)
+            self.run[f"{self.name}-validation/epoch/loss"].log(valid_loss, step=ei)
+            self.run[f"{self.name}-validation/epoch/acc"].log(valid_acc, step=ei)
+            self.run[f"{self.name}-time/validation/epoch"].log(val_end-val_start, step=ei)
+            self.run[f"{self.name}-time/train+val/epoch"].log(val_end - t1, step=ei)
             
             
             #< patience and checkpoint
@@ -259,23 +262,23 @@ class EddlCnnModule_ecvl:
             if self.patience_run > self.patience:
                 print(f"early breaking, patience {self.patience}")
                 early_stop = True
-                break 
+                break
             #< 
         #< epochs
 
         # log according to early_stop
         if not early_stop:
-            self.run["training/loss"] = epoch_loss
-            self.run["training/acc"] = epoch_acc
-            self.run["validation/loss"] = valid_loss
-            self.run["validation/acc"] = valid_acc
+            self.run[f"{self.name}-training/loss"] = epoch_loss
+            self.run[f"{self.name}-training/acc"] = epoch_acc
+            self.run[f"{self.name}-validation/loss"] = valid_loss
+            self.run[f"{self.name}-validation/acc"] = valid_acc
         else:
             self.cnn = self.load_checkpoint()
-            self.save()
-            self.run["training/loss"] = best_training_loss
-            self.run["training/acc"] = best_training_acc
-            self.run["validation/loss"] = self.best_validation_loss
-            self.run["validation/acc"] = self.best_validation_acc
+            self.save("best_cnn.onnx")
+            self.run[f"{self.name}-training/loss"] = best_training_loss
+            self.run[f"{self.name}-training/acc"] = best_training_acc
+            self.run[f"{self.name}-validation/loss"] = self.best_validation_loss
+            self.run[f"{self.name}-validation/acc"] = self.best_validation_acc
         #<
         end_train_t = time.perf_counter()
         print(f"training complete: {H.precisedelta(end_train_t - start_train_t)}")
@@ -285,7 +288,7 @@ class EddlCnnModule_ecvl:
         ds = self.ds
         cnn = self.get_network()
         ds.SetSplit(ecvl.SplitType.validation)
-        # ds.ResetBatch(shuffle=True)
+        ds.ResetBatch(shuffle=True)
         n_batches = ds.GetNumBatches()
         
         loss = 0
@@ -314,20 +317,20 @@ class EddlCnnModule_ecvl:
         print("unimplemented")
     #<
 
-    def save(self, filename=None):
-        filename = join( self.conf.exp_fld) if filename else self.conf.out_fn
+    def save(self, filename):
+        filename = join( self.conf.out_fld, filename )
         eddl.save_net_to_onnx_file(self.get_network(), filename)
         print(f"model saved, location: {filename}")
         return filename
     #<
     
     def save_checkpoint(self, filename="cnn_checkpoint.onnx"):
-        filename = join(self.conf.exp_fld, filename)
+        filename = join(self.conf.out_fld, filename)
         eddl.save_net_to_onnx_file(self.get_network(), filename)
         print(f"saved checkpoint: {filename}")
     #<
     def load_checkpoint(self, filename="cnn_checkpoint.onnx"):
-        filename = join(self.conf.exp_fld, filename)
+        filename = join(self.conf.out_fld, filename)
         print("loading last checkpoint")
         return self.build_cnn(self.load_model(filename))
     #<
