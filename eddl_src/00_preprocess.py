@@ -304,6 +304,8 @@ def image_based_ds(df, img_fld, enc_text_col):
 def main(txt_fld = "../data/text",  # folder containing the xml reports
         img_fld = "../data/image",  # folder containing the images
         out_fld=".", 
+        out_fn=None,  # default is reports.tsv & img_<default>
+        apply_min_term_freq = True,
         min_term_freq_mesh = 100,
         min_term_freq_auto = 100,
         vocab_size = 1000,
@@ -330,9 +332,9 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
             return 0
         terms = x.split(reports.list_sep)
         return len(terms)
-    
-    df[reports.k_auto_term] = apply_term_freq_thresh(df, reports.k_auto_term, min_term_freq_auto)
-    df[reports.k_major_mesh] = apply_term_freq_thresh(df, reports.k_major_mesh, min_term_freq_mesh)
+    if apply_min_term_freq:
+        df[reports.k_auto_term] = apply_term_freq_thresh(df, reports.k_auto_term, min_term_freq_auto)
+        df[reports.k_major_mesh] = apply_term_freq_thresh(df, reports.k_major_mesh, min_term_freq_mesh)
     df[reports.k_n_major_mesh] = df[reports.k_major_mesh].apply(lambda x: count_terms(x))  # len(reports.list_sep.split(x)) if len(x)>0 else 0)
     df[reports.k_n_auto_term] = df[reports.k_auto_term].apply(lambda x: len(x.split(reports.list_sep)) if len(x)>0 else 0)
     #<
@@ -361,15 +363,17 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
     df["mesh_labels"], mesh_lab2i, mesh_i2lab = encode_image_labels(df["major_mesh"], verbose=True )
     json.dump(auto_lab2i, open(join(out_fld, "auto_lab2index.json"), "w") )
     json.dump(auto_i2lab, open(join(out_fld, "auto_index2lab.json"), "w") )
-    json.dump(mesh_lab2i, open(join(out_fld, "mesh_lab2index.json"), "w") )
+    json.dump(mesh_lab2i, open(join(out_fld, "mesh_lab2index.json"), "w") ) 
     json.dump(mesh_i2lab, open(join(out_fld, "mesh_index2lab.json"), "w") )
     #<
 
     ib_ds = image_based_ds(df, img_fld, enc_text_col=enc_text_col)
 
     #>
-    reports_fn = join(out_fld, "reports.tsv")
-    ib_fn = join(out_fld, "img_reports.tsv")
+    out_fn = out_fn or "reports.tsv"
+    img_out_fn = "img_" + out_fn
+    reports_fn = join(out_fld, out_fn)
+    ib_fn = join(out_fld, img_out_fn)
     df.to_csv(reports_fn, index="id", sep=reports.csv_sep)
     ib_ds.to_csv(ib_fn, index="image_filename", sep=reports.csv_sep)
     #< 

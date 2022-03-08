@@ -10,6 +10,9 @@ from utils.ecvl_ds_utils import to_img_ecvl_yml_str
 from neural_nets.cnn_module import EddlCnnModule_ecvl
 from neural_nets.eddl_augmentations import train_augs, test_augs
 
+import neptune.new as neptune
+
+
 def to_list(value):
     return [value] if type(value) is not list else value
    
@@ -33,6 +36,11 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
 
     train_idxs, valid_idxs, test_idxs = make_splits(ds, train_p, valid_p, shuffle_seed, lab)
     
+    for fn, ids in zip( ["train", "valid", "test"], [train_idx, valid_idxs, test_idxs]):
+        with open(join(exp_fld, fn), "w") as fout:
+            fout.write("\n".join([str(id) for id in ids]))
+    
+
     #>
     ecvl_str = to_img_ecvl_yml_str(ds, train_idxs, valid_idxs, test_idxs, descr)
     ecvl_fn = join(exp_fld, out_fn)
@@ -44,6 +52,29 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
 #<
 
 # --------------------------------------------------
+
+def init_neptune(dev, remote_log):
+    if dev:
+        neptune_mode = "debug"
+    elif remote_log:
+        neptune_mode = "async"
+    else:
+        neptune_mode = "offline"
+    print(f"NEPTUNE REMOTE LOG, mode set to {neptune_mode}")
+    run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
+    # run["description"] = description if description else "cnn_module"
+    # run["configuration"] = conf
+    # run["num image classes"] = self.n_classes
+    return run 
+
+
+def cross_validate(k=5, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n_epochs=200, batch_size=32, optimizer=["adam"],
+        learning_rate=[0.01], momentum=[0.9], patience=5, patience_kick_in=200, 
+        check_val_every=10, seed=1, shuffle_seed=2, description="n/a",
+        gpu_id=[1], eddl_cs_mem="full_mem", verbose=False, dev=False, remote_log=None, cnn_model="resnet18"):
+    img_size = 224
+
+
 
 def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n_epochs=200, batch_size=32, optimizer=["adam"], 
         learning_rate=[0.01], momentum=[0.9], patience=5, patience_kick_in=200, 
@@ -97,6 +128,7 @@ def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n
 
     import os
     from yaml import dump
+    run = init_neptune(dev=dev, remote_log=remote_log)
     for i, params in enumerate(parameters):
         print(f"{i+1}/{len(parameters)} runs")
         run_fld = join(exp_fld, f"run_{i}")
@@ -104,13 +136,18 @@ def train_cnn(ds_fn=None, exp_fld=".", out_fn="best_cnn.onnx", load_file=None, n
         params["out_fld"] = run_fld
         with open(join(run_fld, "config.yml"), "w") as fout:
             dump(params, fout, default_flow_style=None)
+        
         dataset = load_ecvl_dataset(ds_fn, params["batch_size"], gpu=gpu_id)
-        cnn_module = EddlCnnModule_ecvl(dataset, params, name=str(i))
+        
+        cnn_module = EddlCnnModule_ecvl(dataset, params, neptune_run=run, name=str(i))
         cnn_module.train()
         cnn_module.delete_nn()
         del cnn_module
     
-    
+    print(f" run {i} completed")
+    #
+    print(f"{len(parameters)} runs completed")
+# 
         
 
 

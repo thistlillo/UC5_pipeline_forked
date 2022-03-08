@@ -8,6 +8,22 @@ std = [0.26261734, 0.26261734, 0.26261734]
 # mean = np.array([0.48197903, 0.48197903, 0.48197903]) * 255
 # std = np.array([0.26261734, 0.26261734, 0.26261734]) * 255
 
+train_augs_gs = lambda x: ecvl.SequentialAugmentationContainer([
+                ecvl.AugResizeDim([300, 300]),
+                ecvl.AugRandomCrop([x, x]),  # XXX should be parametric, for resnet 18
+                ecvl.AugToFloat32(divisor=255.0),
+                ecvl.AugNormalize(mean[0], std[0]),
+            ])
+
+test_augs_gs =  lambda x: ecvl.SequentialAugmentationContainer([
+                ecvl.AugResizeDim([300, 300]),
+                ecvl.AugCenterCrop([x, x]),
+                # ecvl.AugRandomCrop([size, size]),  # XXX should be parametric, for resnet 18
+                ecvl.AugToFloat32(divisor=255.0),
+                ecvl.AugNormalize(mean[0], std[0]),
+            ])
+
+
 
 train_augs = lambda x: ecvl.SequentialAugmentationContainer([
                 ecvl.AugResizeDim([300, 300]),

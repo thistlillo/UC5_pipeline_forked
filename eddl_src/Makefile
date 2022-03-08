@@ -1,10 +1,10 @@
 THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
 $(warning running makefile: ${THIS_MAKEFILE})
 
-EXP_NAME = eddl_integration
+EXP_NAME = eddl_acc_4gpu
 CNN_IMAGE_SIZE = 224
-SEED = 999
-SHUFFLE_SEED = 2
+SEED = 10
+SHUFFLE_SEED = 40
 
 BASE_DS_FLD = ../data
 IMAGE_FLD = $(BASE_DS_FLD)/image
@@ -16,6 +16,7 @@ BASE_OUT_FLD = ../experiments_eddl
 EXP_FLD  =$(BASE_OUT_FLD)/$(EXP_NAME)_$(SEED)
 $(warning output folder for the experiment: ${EXP_FLD})
 
+# TODO
 $(EXP_FLD)/reports_raw.tsv:
 preprocess:
 	$(shell mkdir -p $(EXP_FLD))
@@ -25,14 +26,17 @@ preprocess:
 #preprocess: $(EXP_FLD)/reports_raw.tsv
 
 dataset:
-	$(PYTHON) 01_train.py prepare_training --descr=$(EXP_NAME) --exp_fld=$(EXP_FLD) --train_p=0.7 --valid_p=0.1 --shuffle_seed=$(SHUFFLE_SEED) --labels=mesh
+	$(PYTHON) 01_train.py prepare_training --descr=$(EXP_NAME) --exp_fld=$(EXP_FLD) \
+	--train_p=0.7 --valid_p=0.1 --shuffle_seed=$(SHUFFLE_SEED) --labels=mesh
 
 train_cnn:
+	@cp $(THIS_MAKEFILE) $(EXP_FLD)
 	$(warning training cnn, folder: ${EXP_FLD})
 	$(PYTHON) 01_train.py train_cnn --exp_fld=$(EXP_FLD) \
-		--n_epochs=1000 --remote_log=True --batch_size=[32,64,128] \
+		--n_epochs=2000 --batch_size=[64,128] --learning_rate=[0.01,0.02,0.05,0.09] \
 		--seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED) --verbose=True --dev=False \
-		--gpu_id=[0,0,1,1] --description="two gpus, sigmoid, resnet, varying batch size"
+		--gpu_id=[0,0,1,1] --description="resnet 101" \
+		--remote_log=True
 
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv

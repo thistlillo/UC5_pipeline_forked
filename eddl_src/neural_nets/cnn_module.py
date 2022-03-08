@@ -18,6 +18,24 @@ from text.vocabulary import Vocabulary
 
 import neptune.new as neptune
 
+from pyeddl._core import Loss, Metric
+
+class Jaccard(Metric):
+    def __init__(self):
+        Metric.__init__(self, "py_jaccard")
+
+    def value(self, t, y):
+        t.info()
+        y.info()
+        n_labs = t.sum()
+        #print(f"n labels {n_labs}", flush=True)
+        y_round = y.round()
+        #print(f"predicted: {y.round().sum()}", flush=True)
+        score = t.mult(y_round).sum()
+        #print(f"correctly predicted: {score}", flush=True)
+        return score / n_labs
+
+
 # https://code.activestate.com/recipes/52308-the-simple-but-handy-collector-of-a-bunch-of-named/
 class Bunch(dict):
     def __init__(self, **kw):
@@ -26,7 +44,7 @@ class Bunch(dict):
     
 
 class EddlCnnModule_ecvl:
-    def __init__(self, dataset, config, name=""):
+    def __init__(self, dataset, config, neptune_run=None, name=""):
         self.ds = dataset
         self.n_classes = len(self.ds.classes_)
        
@@ -45,7 +63,7 @@ class EddlCnnModule_ecvl:
         else:
             self.cnn = self.build_cnn()
 
-        self.run = self.init_neptune()
+        self.run = self.init_neptune(neptune_run)
         
         self.patience_kick_in = self.conf.patience_kick_in
         self.patience = self.conf.patience
@@ -58,15 +76,17 @@ class EddlCnnModule_ecvl:
         del self.cnn
     #<
 
-    def init_neptune(self):
-        if self.conf["dev"]:
-            neptune_mode = "debug"
-        elif self.conf["remote_log"]:
-            neptune_mode = "async"
-        else:
-            neptune_mode = "offline"
-        print(f"NEPTUNE REMOTE LOG, mode set to {neptune_mode}")
-        run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
+    def init_neptune(self, run):
+        if not run:
+            if self.conf["dev"]:
+                neptune_mode = "debug"
+            elif self.conf["remote_log"]:
+                neptune_mode = "async"
+            else:
+                neptune_mode = "offline"
+            print(f"NEPTUNE REMOTE LOG, mode set to {neptune_mode}")
+            run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
+        
         run["description"] = self.conf.description if "description" in self.conf else "cnn_module"
         run["configuration"] = self.conf
         run["num image classes"] = self.n_classes
@@ -90,15 +110,35 @@ class EddlCnnModule_ecvl:
         return eddl.CS_GPU(g=self.conf.gpu_id, mem=self.conf.eddl_cs_mem, lsb=lsb) if eddl_cs == 'gpu' else eddl.CS_CPU(th=2, mem=eddl_mem)
     #< 
 
+    def get_loss_name(self):
+        name = "softmax_cross_entropy"
+        print("output layer:", self.out_layer_act)
+        if self.out_layer_act == "sigmoid":
+            name = "binary_cross_entropy"
+        
+        return name
+    #<
+
+    def get_optimizer(self):
+        opt_name = self.conf.optimizer
+        if opt_name == "adam":
+            return eddl.adam(lr=self.conf.learning_rate)
+        elif opt_name == "cyclic":
+            #self.cylic = 
+            return eddl.adam(lr=self.conf.learning_rage)
+        else:
+            assert False
+    #<
+
     def download_base_cnn(self, top=True):
-        return eddl.download_resnet18(top=top)  # , input_shape=[3, 256, 256]) 
+        return eddl.download_resnet101(top=top)  #, input_shape=[1, 224, 224]) 
     #<
 
     # returns an output layer with the activation specified via cli
     def get_out_layer(self, top_layer, version="sigmoid", layer_name="cnn_out"):
         print(f"cnn, output layer: {version}")
         res = None
-        print(f"adding classification layer, number of classes {self.n_classes}")
+        print(f"cnn, number of classes {self.n_classes}")
         dense_layer = eddl.HeUniform(eddl.Dense(top_layer, self.n_classes, name="out_dense"))
         dense_layer.initialize()
         
@@ -131,7 +171,10 @@ class EddlCnnModule_ecvl:
         #<
         loss_str = self.get_loss_name()
         optimizer = self.get_optimizer()
-        eddl.build(cnn, optimizer, [loss_str], ["accuracy"], self.comp_serv(), init_weights=False)  # losses, metrics, 
+        loss = eddl.getLoss(loss_str)
+        metric = eddl.getMetric("accuracy")  # Jaccard()
+        # eddl.build(cnn, optimizer, [loss_str], ["binary_accuracy"], self.comp_serv(), init_weights=False)  # losses, metrics, 
+        cnn.build(optimizer, [loss], [metric], self.comp_serv(), initialize=False)  # losses, metrics, 
 
         print(f"cnn built: resnet18")
         return cnn
@@ -141,25 +184,6 @@ class EddlCnnModule_ecvl:
         filename = filename or self.conf.load_file
         cnn = eddl.import_net_from_onnx_file(filename)
         return self.build_cnn(cnn)
-    #<
-
-    def get_loss_name(self):
-        name = "softmax_cross_entropy"
-        print("output layer:", self.out_layer_act)
-        if self.out_layer_act == "sigmoid":
-            name = "binary_cross_entropy"
-        return name
-    #<
-
-    def get_optimizer(self):
-        opt_name = self.conf.optimizer
-        if opt_name == "adam":
-            return eddl.adam(lr=self.conf.learning_rate)
-        elif opt_name == "cyclic":
-            assert False
-            return eddl.sgd(lr=0.001)
-        else:
-            assert False
     #<
 
     def get_network(self):
@@ -175,6 +199,11 @@ class EddlCnnModule_ecvl:
         n_epochs = self.conf.n_epochs
         n_training_batches = ds.GetNumBatches()
         n_validation_batches = ds.GetNumBatches(ecvl.SplitType.validation)
+
+        print("num batches:")
+        print(f" - training: {n_training_batches}")
+        print(f" - validation: {n_validation_batches}")
+
         epoch_loss = 0
         epoch_acc = 0
         best_training_loss = 0
