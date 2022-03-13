@@ -36,7 +36,7 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
 
     train_idxs, valid_idxs, test_idxs = make_splits(ds, train_p, valid_p, shuffle_seed, lab)
     
-    for fn, ids in zip( ["train", "valid", "test"], [train_idx, valid_idxs, test_idxs]):
+    for fn, ids in zip( ["train", "valid", "test"], [train_idxs, valid_idxs, test_idxs]):
         with open(join(exp_fld, fn), "w") as fout:
             fout.write("\n".join([str(id) for id in ids]))
     
