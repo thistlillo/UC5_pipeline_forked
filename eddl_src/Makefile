@@ -38,6 +38,12 @@ train_cnn:
 		--gpu_id=[0,0,1,1] --description="resnet 101" \
 		--remote_log=True
 
+mean_iu-chest:
+	$(PYTHON) utils/mean_and_variance.py --img_fld=$(IMAGE_FLD) --dataset=iu-chest
+
+mean_chest-xray8: 
+	$(PYTHON) utils/mean_and_variance.py --img_fld=/mnt/datasets/mimic-cxr/chestx-ray8/images --dataset=chest-xray8
+
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv
 
