@@ -78,7 +78,7 @@ def full_training(out_fld, cnn, ds, run, config):
     n_test_batches = ds.GetNumBatches(ecvl.SplitType.test)
 
     stop_criterion = UpEarlyStopping()
-    progress_criterion = ProgressEarlyStopping()
+    # progress_criterion = ProgressEarlyStopping()
     ei = 0
     losses, accs = [], []
     v_losses, v_accs = [], []
@@ -90,7 +90,7 @@ def full_training(out_fld, cnn, ds, run, config):
         print("!!! dev set, n_epochs set to 3")
         n_epochs = 3
     
-    while ei < n_epochs and (not stop_criterion.stop) and (not progress_criterion.stop):
+    while ei < n_epochs and (not stop_criterion.stop):  # and (not progress_criterion.stop):
         epoch_loss = 0
         epoch_acc = 0
         ds.SetSplit(ecvl.SplitType.training)
@@ -150,9 +150,9 @@ def full_training(out_fld, cnn, ds, run, config):
         eta = np.mean(total_t) * (n_epochs - ei)
 
         early_stopping = stop_criterion.append(v_acc)
-        progress_stop = progress_criterion.append(accs[-1])
+        # progress_stop = progress_criterion.append(accs[-1])
         print(f"early stopping? {early_stopping}")
-        print(f"progress stop? {progress_stop}")
+        # print(f"progress stop? {progress_stop}")
         print(f"{ei+1}/{n_epochs} ends")
         if ei+1 != n_epochs:
             print(f"estimated time to completion without early breaking: {H.precisedelta(eta)} - stopping now? {early_stopping}")
@@ -164,9 +164,9 @@ def full_training(out_fld, cnn, ds, run, config):
     res["training_acc"] = accs
     res["validation_acc"] = v_accs
     res["test_acc"] = t_accs
-    res["early_breaking"] = stop_criterion.stop or progress_criterion.stop
+    res["early_breaking"] = stop_criterion.stop # or progress_criterion.stop
     res["stop_criterion"] = stop_criterion.stop
-    res["progress_criterion"] = stop_criterion.stop
+    # res["progress_criterion"] = stop_criterion.stop
     res["n_epochs"] = ei  # last epoch index + 1 (starts from zero)
     res["best_valid_acc"] = best_v_acc
     res["best_model_path"] = join(out_fld, "best_val_acc_chkp.onnx")
