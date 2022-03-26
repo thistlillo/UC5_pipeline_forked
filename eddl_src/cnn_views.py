@@ -16,6 +16,8 @@ from pyeddl.tensor import Tensor
 import neptune.new as neptune
 from tqdm import tqdm
 
+from neural_nets.early_stopping import UpEarlyStopping
+
 
 def create_model(gpu):
     base_cnn = eddl.download_resnet18(top=True)
@@ -146,6 +148,9 @@ def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, b
     out_fld = "/opt/uc5/results/eddl_exp/frontal_lat_view"
     os.makedirs(out_fld, exist_ok=True)
     
+    ecvl.AugmentationParam.SetSeed(seed)
+    ecvl.DLDataset.SetSplitSeed(shuffle_seed)
+
     #>
     sub = ds.loc[ds.n_images == 2]
     

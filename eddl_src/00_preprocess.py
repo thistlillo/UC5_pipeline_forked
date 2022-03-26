@@ -1,3 +1,8 @@
+#
+# all preprocessing steps in a single file.
+#
+
+
 from bs4 import BeautifulSoup
 from collections import defaultdict
 import fire

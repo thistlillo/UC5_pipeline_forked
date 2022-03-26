@@ -1,6 +1,6 @@
 import numpy as np
 
-
+eps = 1e-8
 class PatienceEarlyStopping:
     def __init__(self):
         self.v = []  # values of the watched metric
@@ -119,9 +119,11 @@ class ProgressEarlyStopping:
         k = self.k
         values = self.v[-k:]
         assert len(values) == k
-        mean = sum(values) / len(values)
-        m = min(values) * k
-        crit = 1000 * (mean/m - 1)
+        
+        mean = sum(values) / len(values) + eps
+        m = min(values) * k + eps
+        crit = 1000 * (mean / m - 1)
+        
         self.stop = crit < theta
         return self.stop
         

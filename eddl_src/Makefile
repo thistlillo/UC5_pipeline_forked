@@ -44,6 +44,9 @@ mean_iu-chest:
 mean_chest-xray8: 
 	$(PYTHON) utils/mean_and_variance.py --img_fld=/mnt/datasets/mimic-cxr/chestx-ray8/images --dataset=chest-xray8
 
+mean_mimic_cxr:
+	$(PYTHON) utils/mean_and_variance.py --in_tsv=/mnt/datasets/mimic-cxr/training_data/mimic/normal_bin_unbal.tsv --dataset=mimic_cxr
+
 chest_xray8_normal:
 	$(PYTHON) cnn_binary_train.py --in_fld=/mnt/datasets/uc5/UC5_pipeline_forked/experiments_eddl/chestxray_normal \
 		--out_fld=/mnt/datasets/uc5/UC5_pipeline_forked/experiments_eddl/chestxray_normal \
@@ -53,6 +56,14 @@ chest_xray8_normal_new:
 	$(PYTHON) cnn_binary_train.py --in_fld=/mnt/datasets/mimic-cxr/experiments/chest8 \
 		--out_fld=/mnt/datasets/mimic-cxr/experiments/chest8 \
 		--gpu=[1,1] --nodev
+
+mimic_normal_unbal:
+	$(PYTHON) cnn_binary_train.py --in_fld=/opt/uc5/results/eddl_exp/mimic/normal_unbal \
+			--out_fld=/opt/uc5/results/eddl_exp/mimic/normal_unbal/out_accuracy \
+			--dataset=mimic_cxr \
+			--gpu=[1,1] --nodev
+
+
 
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv
