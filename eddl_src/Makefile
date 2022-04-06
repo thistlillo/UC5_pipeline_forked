@@ -1,7 +1,7 @@
 THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
 $(warning running makefile: ${THIS_MAKEFILE})
 
-EXP_NAME = eddl_acc_4gpu
+EXP_NAME = eddl_test_remove
 CNN_IMAGE_SIZE = 224
 SEED = 10
 SHUFFLE_SEED = 40
@@ -60,9 +60,14 @@ chest_xray8_normal_new:
 mimic_normal_unbal:
 	$(PYTHON) cnn_binary_train.py --in_fld=/opt/uc5/results/eddl_exp/mimic/normal_unbal \
 			--out_fld=/opt/uc5/results/eddl_exp/mimic/normal_unbal/out_accuracy \
-			--dataset=mimic_cxr \
-			--gpu=[1,1] --nodev
+			--dataset=mimic_cxr --bs=256 --seed=1234 --shuffle_seed=5678 \
+			--gpu=[1,1,0,0] --nodev
 
+mimic_view_unbal:
+	$(PYTHON) cnn_binary_train.py --in_fld=/opt/uc5/results/eddl_exp/mimic/view_unbal \
+			--out_fld=/opt/uc5/results/eddl_exp/mimic/view_unbal/out_accuracy \
+			--dataset=mimic_cxr --bs=256 --seed=1234 --shuffle_seed=5678 \
+			--gpu=[1,1,0,0] --nodev
 
 
 clean:

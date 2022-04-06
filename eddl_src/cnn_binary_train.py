@@ -93,7 +93,7 @@ def full_training(out_fld, cnn, ds, run, config):
     n_validation_batches = ds.GetNumBatches(ecvl.SplitType.validation)
     n_test_batches = ds.GetNumBatches(ecvl.SplitType.test)
 
-    stop_criterion = UpEarlyStopping()
+    stop_criterion = UpEarlyStopping(i=3, k=2)
     progress_criterion = ProgressEarlyStopping()
     ei = 0
     losses, accs = [], []
@@ -130,6 +130,7 @@ def full_training(out_fld, cnn, ds, run, config):
             epoch_acc += acc
             if config["dev"] and bi > 500:
                 break
+            
         #< training
         t2 = time.perf_counter()
         ds.Stop()
@@ -137,16 +138,16 @@ def full_training(out_fld, cnn, ds, run, config):
         accs.append(epoch_acc / n_training_batches)
         
         # print(f"\t * training, loss {losses[-1]:.3f}, acc {accs[-1]:.3f}")
-        run[f"{name}/train/loss"].log(losses[-1])
-        run[f"{name}/train/acc"].log(accs[-1])
+        run[f"{name}/train/loss"].log(losses[-1], step=ei)
+        run[f"{name}/train/acc"].log(accs[-1], step=ei)
         
         print(f"{ei+1}/{n_epochs} - validation: {n_validation_batches} batches")
         v_loss, v_acc = validation(cnn, ds)
         t3 = time.perf_counter()
         v_losses.append(v_loss)
         v_accs.append(v_acc)
-        run[f"{name}/valid/loss"].log(v_loss)
-        run[f"{name}/valid/acc"].log(v_acc)
+        run[f"{name}/valid/loss"].log(v_loss, step=ei)
+        run[f"{name}/valid/acc"].log(v_acc, step=ei)
         if v_acc > best_v_acc:
             # eddl.save_net_to_onnx_file(cnn, join(out_fld, "best_val_acc_chkp.onnx"))
             eddl.save( cnn, join(out_fld, "best_val_acc_chkp.bin") )
@@ -154,8 +155,8 @@ def full_training(out_fld, cnn, ds, run, config):
         print(f"{ei+1}/{n_epochs} - test: {n_test_batches} batches")
         t_loss, t_acc = validation(cnn, ds, do_test=True)
         t4 = time.perf_counter()
-        run[f"{name}/test/loss"].log(t_loss)
-        run[f"{name}/test/acc"].log(t_acc)
+        run[f"{name}/test/loss"].log(t_loss, step=ei)
+        run[f"{name}/test/acc"].log(t_acc, step=ei)
         t_losses.append(t_loss)
         t_accs.append(t_acc)
 
@@ -172,11 +173,12 @@ def full_training(out_fld, cnn, ds, run, config):
 
         early_stopping = stop_criterion.append(v_acc)
         progress_stop = progress_criterion.append(accs[-1])
-        print(f"early stopping? {early_stopping}")
+        print(f"early stopping (stop criterion)? {early_stopping}")
         print(f"progress stop? {progress_stop}")
-        print(f"{ei+1}/{n_epochs} ends")
+        print(f"{ei+1}/{n_epochs} epoch ends")
         if ei+1 != n_epochs:
             print(f"estimated time to completion without early breaking: {H.precisedelta(eta)} - stopping now? {early_stopping}")
+        
     #< while
     res = {}
     res["training_loss"] = losses
@@ -266,9 +268,7 @@ def main(in_fld, out_fld, dataset,
 
     
     results = {}
-    optimizer = eddl.adam(lr=config["lr"]) if config else eddl.adam(lr=1e-4)
-    loss_fn = eddl.getLoss("softmax_cross_entropy")
-    metric_fn = eddl.getMetric("accuracy")  # BalancedAccuracy()
+    
 
     for i, sub_fld in enumerate(sub_flds):
         print(50 * "-")
@@ -278,6 +278,10 @@ def main(in_fld, out_fld, dataset,
         dataset = ecvl.DLDataset(join(in_fld, sub_fld, "dataset.yml"), batch_size=mult_bs, augs=augs, 
             ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, 
             num_workers=num_workers, queue_ratio_size= 2 * num_workers, drop_last=drop_last)
+        
+        optimizer = eddl.adam(lr=config["lr"]) if config else eddl.adam(lr=1e-4)
+        loss_fn = eddl.getLoss("softmax_cross_entropy")
+        metric_fn = eddl.getMetric("accuracy")  # BalancedAccuracy()
         cnn = build_cnn(backbone, optimizer, loss_fn, metric_fn, gpu, mem, config)
         
         cnn_out_fld = join( out_fld, sub_fld )
