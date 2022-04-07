@@ -397,9 +397,9 @@ class EddlCnnModule_ecvl:
         print(f"adding classification layer, number of classes {self.ds.n_classes}")
         dense_layer = eddl.HeUniform(eddl.Dense(top_layer, self.ds.n_classes, name="out_dense"))
         dense_layer.initialize()
-        if out_layer_act == "sigmoid":
+        if version == "sigmoid":
             res = eddl.Sigmoid(dense_layer, name=layer_name)
-        elif out_layer_act == "softmax":
+        elif version == "softmax":
             res = eddl.Softmax(dense_layer, name=layer_name)
         else:
             assert False

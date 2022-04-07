@@ -2,6 +2,7 @@ import numpy as np
 import pyecvl.ecvl as ecvl
 
 
+# iu chest
 mean = [0.48197903, 0.48197903, 0.48197903]
 std = [0.26261734, 0.26261734, 0.26261734]
 

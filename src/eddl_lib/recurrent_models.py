@@ -109,6 +109,7 @@ def generate_text(rnn, n_tokens, visual_batch=None, semantic_batch=None, dev=Fal
         out_soft = eddl.getOutput(last_layer)
         # pass control to numpy for argmax
         wis = np.argmax(out_soft, axis=-1)
+        print(wis)
         # if dev:
         #     print(wis.shape)
         #     print(f"next_token {wis[0]}")

@@ -17,9 +17,12 @@ import neptune.new as neptune
 from tqdm import tqdm
 
 
-def create_model(gpu):
+def create_model(gpu, trainable=0):
     base_cnn = eddl.download_resnet18(top=True)
-    # layer_names = [_.name for _ in base_cnn.layers]
+    layer_names = [_.name for _ in base_cnn.layers]
+    for name in layer_names:
+        eddl.setTrainable(base_cnn, name, trainable)
+
     cnn_in = eddl.getLayer(base_cnn, "input")
     cnn_top = eddl.getLayer(base_cnn, "top")
     dense_layer = eddl.HeUniform(eddl.Dense(cnn_top, 2, name="out_dense"))
@@ -29,7 +32,7 @@ def create_model(gpu):
     optimizer = eddl.adam()
     cs = eddl.CS_GPU(g=gpu, mem="full_mem") if gpu else eddl.CS_CPU(th=2, mem="full_mem")
     eddl.build(cnn, optimizer, ["softmax_cross_entropy"], ["accuracy"], cs, init_weights=False)
-    return cnn
+    return cnn, layer_names
 #< create_model
 
 def validation(cnn: eddl.Model, ds:ecvl.DLDataset, do_test=False):
@@ -56,12 +59,12 @@ def validation(cnn: eddl.Model, ds:ecvl.DLDataset, do_test=False):
 #< validation
 
 
-def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, run, name="cnn", patience=10):
+def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, run, name="cnn", patience=10, fine_tune=0, base_layer_names=[]):
     ds.SetSplit(ecvl.SplitType.training)
     n_training_batches = ds.GetNumBatches()
     n_validation_batches = ds.GetNumBatches(ecvl.SplitType.validation)
     
-    patience_kick_in = 100
+    patience_kick_in = 20
     best_loss = 1_000_000
     best_acc = 0
     best_v_loss = 1_000_000
@@ -93,8 +96,8 @@ def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, r
             epoch_acc += acc
         losses.append(epoch_loss / n_training_batches)
         accs.append(epoch_acc / n_training_batches)
-        run[f"{name}/train/loss"].log(losses[-1])
-        run[f"{name}/train/acc"].log(accs[-1])
+        run[f"{name}/train/loss"].log(losses[-1], step=ei)
+        run[f"{name}/train/acc"].log(accs[-1], step=ei)
 
         ds.Stop()
 
@@ -102,19 +105,23 @@ def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, r
         v_loss, v_acc = validation(cnn, ds)
         v_losses.append(v_loss)
         v_accs.append(v_acc)
-        run[f"{name}/valid/loss"].log(v_losses[-1])
-        run[f"{name}/valid/acc"].log(v_accs[-1])
+        run[f"{name}/valid/loss"].log(v_losses[-1], step=ei)
+        run[f"{name}/valid/acc"].log(v_accs[-1], step=ei)
         if v_acc > best_v_acc:
             eddl.save_net_to_onnx_file(cnn, join(out_fld, "best_val_acc_chkp.onnx"))
 
         print("test")
         t_loss, t_acc = validation(cnn, ds, do_test=True)
-        run[f"{name}/test/loss"].log(t_loss)
-        run[f"{name}/test/acc"].log(t_acc)
+        run[f"{name}/test/loss"].log(t_loss, step=ei)
+        run[f"{name}/test/acc"].log(t_acc, step=ei)
 
 
         print(f"{ei+1}/{n_epochs}: loss {losses[-1]:.2f}, acc {accs[-1]:.2f}")
         print(f"{ei+1}/{n_epochs}, validation: loss {v_losses[-1]:.2f}, acc {v_accs[-1]:.2f}")
+        if (ei==2) and (fine_tune==1):
+            for l in base_layer_names:
+                eddl.setTrainable(cnn, l, 0)
+
     #<
 #< train
             
@@ -140,8 +147,10 @@ def ecvl_yaml(filenames, labels, train_ids, valid_ids, test_ids):
     return d
 
 # --------------------------------------------------
-def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, bs=32, gpu=None):
+def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, bs=128, gpu=None, fine_tune=0):
     ds = pd.read_csv( "/mnt/datasets/uc5/std-dataset/img_ds_no_text.tsv", sep="\t", na_filter=False, index_col="image_filename")
+    # ds = pd.read_csv( "/opt/uc5/results/eddl_exp/eddl_phi2_exp-eddl_phi2_100_2000/img_reports_phi2_enc.tsv", sep="\t", na_filter=False, index_col="filename")
+    
     img_fld = "/mnt/datasets/uc5/std-dataset/image"
     out_fld = "/opt/uc5/results/eddl_exp/normal_vs_rest"
     os.makedirs(out_fld, exist_ok=True)
@@ -181,7 +190,7 @@ def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, b
     #>
     neptune_mode = "offline" if dev else "async"
     run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
-    run["description"] = "normal vs the rest"
+    run["description"] = f"normal vs the rest, ecvl dl, fine tune: {fine_tune}"
     #<
 
     mean = [0.48197903, 0.48197903, 0.48197903]
@@ -231,7 +240,7 @@ def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, b
             yaml.safe_dump(dataset, fout, default_flow_style=True)
         
         # ---
-        num_workers = 8 * nnz(gpu) if gpu else 8
+        num_workers = 4 * nnz(gpu) if gpu else 8
        
         drop_last = {"training": True, "validation": (gpu and nnz(gpu)>1), "test": (gpu and nnz(gpu)>1)}
 
@@ -241,7 +250,7 @@ def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, b
         print(f"batch size {bs} * {multiplier} = {mult_bs}")
         dataset = ecvl.DLDataset(join(kfold_out, "dataset.yml"), batch_size=mult_bs, augs=augs, 
             ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, 
-            num_workers=num_workers, queue_ratio_size= 2 * num_workers, drop_last=drop_last)
+            num_workers=num_workers, queue_ratio_size= 4, drop_last=drop_last)
         # for name, part, l in zip(["train", "valid", "test"], 
         #                 [ecvl.SplitType.training, ecvl.SplitType.validation, ecvl.SplitType.test], 
         #                 [len(train), len(valid), len(test)]):
@@ -249,8 +258,8 @@ def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, b
         #                 dataset.GetNumBatches(split=part),  
         #                 dataset.GetNumBatches(split=part)* bs, 
         #                 l ) )
-        cnn = create_model(gpu)
-        training(cnn, dataset, n_epochs=1000, out_fld=kfold_out, run=run, name="{}/{}_fold".format(i+1, n_splits))
+        cnn, base_layer_names = create_model(gpu, fine_tune)
+        training(cnn, dataset, n_epochs=1000, out_fld=kfold_out, run=run, name="{}/{}_fold".format(i+1, n_splits), fine_tune=fine_tune, base_layer_names=base_layer_names)
         del cnn
         # ---
     #< for over stratified k fold

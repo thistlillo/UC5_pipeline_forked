@@ -61,14 +61,20 @@ mimic_normal_unbal:
 	$(PYTHON) cnn_binary_train.py --in_fld=/opt/uc5/results/eddl_exp/mimic/normal_unbal \
 			--out_fld=/opt/uc5/results/eddl_exp/mimic/normal_unbal/out_accuracy \
 			--dataset=mimic_cxr --bs=256 --seed=1234 --shuffle_seed=5678 \
-			--gpu=[1,1,0,0] --nodev
+			--gpu=[1,1,1,1] --nodev --fine_tune=1
 
 mimic_view_unbal:
 	$(PYTHON) cnn_binary_train.py --in_fld=/opt/uc5/results/eddl_exp/mimic/view_unbal \
 			--out_fld=/opt/uc5/results/eddl_exp/mimic/view_unbal/out_accuracy \
 			--dataset=mimic_cxr --bs=256 --seed=1234 --shuffle_seed=5678 \
-			--gpu=[1,1,0,0] --nodev
+			--gpu=[1,1,1,1] --nodev
 
+
+cnn_normal_ll_only:
+	$(PYTHON) cnn_normal.py --bs=128 --gpu=[1,1,1,1]
+
+cnn_normal_fine_tune:
+	$(PYTHON) cnn_normal.py --bs=128 --gpu=[1,1,1,1] --fine_tune=1
 
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv

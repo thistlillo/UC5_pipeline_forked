@@ -41,8 +41,13 @@ def weighted_loss(y_est, y):
 
 # --------------------------------------------------
 def build_cnn(backbone, optimizer, loss, metric, gpu, mem, config):
+    fine_tune = config["fine_tune"]
     base_cnn = eddl.download_resnet18(top=True)
-    # layer_names = [_.name for _ in base_cnn.layers]
+    layer_names = [_.name for _ in base_cnn.layers]
+    print(f"fine tuning set to {fine_tune}")
+    for n in layer_names:
+        eddl.setTrainable(base_cnn, n, fine_tune)
+
     cnn_in = eddl.getLayer(base_cnn, "input")
     cnn_top = eddl.getLayer(base_cnn, "top")
     dense_layer = eddl.HeUniform(eddl.Dense(cnn_top, 2, name="out_dense"))
@@ -93,14 +98,14 @@ def full_training(out_fld, cnn, ds, run, config):
     n_validation_batches = ds.GetNumBatches(ecvl.SplitType.validation)
     n_test_batches = ds.GetNumBatches(ecvl.SplitType.test)
 
-    stop_criterion = UpEarlyStopping(i=3, k=2)
+    stop_criterion = UpEarlyStopping(i=3, k=3)
     progress_criterion = ProgressEarlyStopping()
     ei = 0
     losses, accs = [], []
     v_losses, v_accs = [], []
     t_losses, t_accs = [], []
     train_t, valid_t, test_t, total_t = [], [], [], []
-    best_v_acc = 0
+    best_v_acc = -1
     t0 = time.perf_counter()
     if config["dev"]:
         print("!!! dev set, n_epochs set to 3")
@@ -148,9 +153,12 @@ def full_training(out_fld, cnn, ds, run, config):
         v_accs.append(v_acc)
         run[f"{name}/valid/loss"].log(v_loss, step=ei)
         run[f"{name}/valid/acc"].log(v_acc, step=ei)
+        print(f"{v_acc:.2f} > {best_v_acc:.2f}?")
         if v_acc > best_v_acc:
             # eddl.save_net_to_onnx_file(cnn, join(out_fld, "best_val_acc_chkp.onnx"))
             eddl.save( cnn, join(out_fld, "best_val_acc_chkp.bin") )
+            print(f"{v_acc:.2f} > {best_v_acc:.2f}, saved: {join(out_fld, 'best_val_acc_chkp.bin')}")
+            best_v_acc = v_acc
 
         print(f"{ei+1}/{n_epochs} - test: {n_test_batches} batches")
         t_loss, t_acc = validation(cnn, ds, do_test=True)
@@ -202,12 +210,12 @@ def full_training(out_fld, cnn, ds, run, config):
 def main(in_fld, out_fld, dataset,
         backbone="resnet18", lr=0.0001, 
         seed=11, shuffle_seed=20, n_epochs=500, img_size=224,
-        bs=128, gpu=None, mem="full_mem", dev=False):
+        bs=128, gpu=None, mem="full_mem", dev=False, fine_tune=0):
     
     config = locals()
     
     # these folders contain the ecvl dataset
-    sub_flds = [fn for fn in os.listdir(in_fld) if os.path.isdir(join(in_fld,fn)) and fn.startswith("fold_")]
+    sub_flds = sorted([fn for fn in os.listdir(in_fld) if os.path.isdir(join(in_fld,fn)) and fn.startswith("fold_")])
     print(f"number of full training iterations: {len(sub_flds)}")
     if len(sub_flds) == 0:
         sub_flds = [in_fld]  # then there is only 1 folder and it is in_fld
@@ -215,7 +223,7 @@ def main(in_fld, out_fld, dataset,
     #>
     neptune_mode = "offline" if dev else "async"
     run = neptune.init(project="UC5-DeepHealth", mode = neptune_mode)
-    run["description"] = "chest-xrays8 - normal vs others"
+    run["description"] = f"{dataset} - normal vs others - fine tune: {fine_tune}"
     #<
 
     #> dataloader
@@ -277,7 +285,7 @@ def main(in_fld, out_fld, dataset,
         print(f"batch size: {mult_bs}")
         dataset = ecvl.DLDataset(join(in_fld, sub_fld, "dataset.yml"), batch_size=mult_bs, augs=augs, 
             ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, 
-            num_workers=num_workers, queue_ratio_size= 2 * num_workers, drop_last=drop_last)
+            num_workers=num_workers, queue_ratio_size=4, drop_last=drop_last)
         
         optimizer = eddl.adam(lr=config["lr"]) if config else eddl.adam(lr=1e-4)
         loss_fn = eddl.getLoss("softmax_cross_entropy")

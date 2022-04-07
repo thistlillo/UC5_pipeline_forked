@@ -77,6 +77,8 @@ class UpEarlyStopping:
         stop = False
         j = 1
         while (j < i) and (not stop):
+            print("j:", generalization_errors[j])
+            print("j-1:", generalization_errors[j-1])
             stop = generalization_errors[j] < generalization_errors[j-1]
             j += 1
         self.stop = stop

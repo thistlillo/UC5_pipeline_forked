@@ -29,9 +29,10 @@ class Bunch(dict):
 
 def load_image(path, augs=None):
     img = ecvl.ImRead(path)
-    ecvl.RearrangeChannels(img, img, "cxy")
+    ecvl.RearrangeChannels(img, img, "xyc")
     if augs:
         augs.Apply(img)
+    ecvl.RearrangeChannels(img, img, "cxy")
     return img
 #<
 
@@ -98,8 +99,7 @@ def main(out_fn,
     print(f"!!! rnn weights read from: {fn} -- IMPORTANT: BIN FILE WAS USED")
     #<
     
-    augs = test_augs
-
+    augs = test_augs(img_size)
     #>
     print("> step 1: generate text for a single image")
     path = args.img_file or join(args.img_fld, "CXR1521_IM-0337-1001.png")
@@ -173,7 +173,8 @@ def main(out_fn,
             decoded = vocab.decode_sentence(gen_wis_str)
             gen_word_idxs.append(gen_wis_str)
             gen_texts.append(decoded)
-        
+            tqdm.write(decoded)
+
         tsv.loc[indexes, "gen_text"] = gen_texts
         tsv.loc[indexes, "gen_wis"] = gen_word_idxs
         tsv.loc[indexes, "partition"] = p.split("_", 1)[0]

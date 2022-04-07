@@ -20,8 +20,8 @@ $(warning using library $(LIBRARY))
 
 # -----------------------------------------------
 # EXPERIMENT AND MODEL IDENTIFIERS
-EXP_NAME = $(LIBRARY)_phi_std
-MODEL = $(LIBRARY)_phi
+EXP_NAME = $(LIBRARY)_phi2
+MODEL = $(LIBRARY)_phi2
 
 # -----------------------------------------------
 # FOLDERS & FILENAMES
@@ -43,7 +43,7 @@ TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
 RESULTS_FLD = $(EXP_FLD)/results
 
 # prefix
-REPORTS = reports_phi
+REPORTS = reports_phi2
 
 # *** *** D O W N L O A D
 $(BASE_DS_FLD)/NLMCXR_png.tgz: 
@@ -70,7 +70,7 @@ PREPROC_IMAGES = $(TSV_FLD)/images_$(PP_IMG_SIZE).pickle
 KEEP_N_TERMS = 100
 # number of tags (MeSH term) to keep per report
 N_TERMS_PER_REP = 4
-MIN_TERM_FREQ = 90
+MIN_TERM_FREQ = 120
 
 # number of images to keep per report, 0 = all
 KEEP_N_IMGS = 0
@@ -85,7 +85,7 @@ VERBOSITY_A = False
 # - REPORTS_TSV is saved into $(EXP_FLD) since it applies experimentantion-specific filters on the raw values
 $(REPORTS_RAW_TSV): A00_prepare_raw_tsv.py
 	@mkdir -p $(TSV_FLD)
-	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ $(VERBOSITY_A) --stats
+	$(PYTHON) A00_prepare_raw_tsv.py --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) --out_file=$@ --verbose=$(VERBOSITY_A) --stats
 
 # -----------------------------------------------
 $(EXP_FLD)/$(REPORTS).tsv: $(REPORTS_RAW_TSV) A01_prepare_tsv.py
@@ -207,22 +207,22 @@ REC_MODEL_OUT_PRED_FN_BIN = $(subst .onnx,_pred.bin,$(REC_MODEL_OUT_FN))
 CHECK_VAL_EVERY_CNN=10
 CHECK_VAL_EVERY_RNN=20
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 EDDL_CS = gpu
 EDDL_CS_MEM = full_mem
 EMB_SIZE = 512
-GPU_ID_CNN=[0,1,0,0]
+GPU_ID_CNN=[1,1,0,0]
 GPU_ID_RNN=[0,1,0,0]
 
 # LAST_BATCH in {drop, random}: if |last batch|<BATCH_SIZE, 
 # 		drop -> do not use the examples, random->choose the missing example randomly 
 LAST_BATCH = random
-LR = 0.05
+LR = 0.0001
 LSTM_SIZE = 512
 MAX_SENTENCES = 5
 MAX_TOKENS = 12
 MOMENTUM = 0.9
-N_EPOCHS=10000
+N_EPOCHS=5000
 OPTIMIZER=adam
 PATIENCE_KICK_IN=200
 # PATIENCE TRESH corresponds to the number of validation steps, i.e. epochs = PATIENCE_THRESH * CHECK_VAL_EVERY
@@ -341,3 +341,5 @@ clean : | A_pipeline_clean B_pipeline_clean C_pipeline_clean D_pipeline_clean
 	D_pipeline_clean annotate_phi  annotate_phi_clean \
 	cnn_classification cnn_classification_clean \
 	preprocess_images
+
+
