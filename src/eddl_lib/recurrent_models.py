@@ -7,6 +7,8 @@ from pyeddl.tensor import Tensor
 import numpy as np
 from text.metrics import compute_bleu_edll as compute_bleu
 
+
+
 def _shared_top(visual_dim, semantic_dim, emb_size, init_v):
     # INPUT: visual features
     cnn_top_in = eddl.Input([visual_dim], name="in_visual_features")
