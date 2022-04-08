@@ -171,6 +171,40 @@ class SimpleCollator(Collator):
     #<
 #< class SimpleCollator
 
+class SimpleCollator2(Collator):
+    """
+    Parse a text encoding of a text and returns a single sentence (padded to a specified number of tokens)
+    """
+    def __init__(self):
+        super(Collator, self).__init__()
+    #<
+
+    def parse_and_collate(self, e_text, n_tokens, n_sentences=1, pad=True):
+        sentences = self.split(e_text)
+        si = 0
+        out = [] # Vocabulary.BOS_I]
+        while si < len(sentences) and (len(out) < n_tokens -1):
+            ii = sentences[si][1:-1]
+            for idx in ii:
+                out.append(idx)
+                if len(out) == n_tokens -1:
+                    break
+            si+=1
+        out.append(Vocabulary.EOS_I)
+        
+        if len(out) < n_tokens and pad:
+            for _ in range(len(out), n_tokens):
+                out.append(Vocabulary.PAD_I)
+        
+        if pad:
+            assert len(out) == n_tokens
+        else:
+            assert out[-1] == Vocabulary.EOS_I and len(out) < n_tokens
+       
+        return out
+
+
+
 # ***************************************************************
 class StandardCollator(Collator):
     """

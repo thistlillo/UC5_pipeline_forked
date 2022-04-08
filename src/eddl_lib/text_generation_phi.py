@@ -94,7 +94,7 @@ def main(out_fn,
     print("rnn model built successfully")
     # TODO: remove once onnx can be used
     fn = args.rnn_model.replace(".onnx", ".bin")
-    eddl.load(rnn, fn)
+    eddl.load(rnn, fn)  # load weights from binary format
     eddl.set_mode(rnn, 0)
     print(f"!!! rnn weights read from: {fn} -- IMPORTANT: BIN FILE WAS USED")
     #<

@@ -14,9 +14,25 @@ def _shared_top(visual_dim, semantic_dim, emb_size, init_v):
     alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1], name="dense_alpha_v"), name="alpha_v")  # missing sentence component
     v_att = eddl.Mult(alpha_v, visual_features)
     print(f"layer visual features: {visual_features.output.shape}")
+    
+    cnn_semantic_in = eddl.Input([semantic_dim], name="in_semantic_features")
+
+    features = eddl.Concat([v_att, cnn_semantic_in], name="co_attention")  # there is no coattention, name kept for subsequent models
+    #context = eddl.RandomUniform(eddl.Dense(features, emb_size, name="co_attention"), -2*init_v, 2*init_v)
+    #print(f"layer coattention: {context.output.shape}")
+    return cnn_top_in, cnn_semantic_in, features
+
+def _shared_top_v1(visual_dim, semantic_dim, emb_size, init_v):
+    # INPUT: visual features
+    cnn_top_in = eddl.Input([visual_dim], name="in_visual_features")
+    visual_features = eddl.RandomUniform(eddl.Dense(cnn_top_in, cnn_top_in.output.shape[1], name="visual_features"), -init_v, init_v)
+    alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1], name="dense_alpha_v"), name="alpha_v")  # missing sentence component
+    v_att = eddl.Mult(alpha_v, visual_features)
+    print(f"layer visual features: {visual_features.output.shape}")
 
     # INPUT: semantic features
     cnn_out_in = eddl.Input([semantic_dim], name="in_semantic_features")
+    # TODO: thresholds here
     semantic_features = eddl.RandomUniform(eddl.Embedding(
         eddl.ReduceArgMax(cnn_out_in, [0]), cnn_out_in.output.shape[1], 1, emb_size, name="semantic_features"), -init_v, init_v)
     alpha_s = eddl.Softmax(eddl.Dense(eddl.Tanh(semantic_features), emb_size, name="dense_alpha_s"), name="alpha_s")  # missing sentence component cnn_out.output.shape[1]
@@ -28,7 +44,7 @@ def _shared_top(visual_dim, semantic_dim, emb_size, init_v):
     #context = eddl.RandomUniform(eddl.Dense(features, emb_size, name="co_attention"), -2*init_v, 2*init_v)
     #print(f"layer coattention: {context.output.shape}")
     return cnn_top_in, cnn_out_in, features
-
+#< shared_top_v1
 
 def recurrent_lstm_model(visual_dim, semantic_dim, vs, emb_size, lstm_size, init_v=0.05):
     assert init_v > 0
@@ -44,6 +60,7 @@ def recurrent_lstm_model(visual_dim, semantic_dim, vs, emb_size, lstm_size, init
     print(f"layer lstm, output shape: {out_lstm.output.shape}")
     # model
     rnn = eddl.Model([cnn_top_in, cnn_out_in], [out_lstm])
+    eddl.summary(rnn)
     return rnn
 
 

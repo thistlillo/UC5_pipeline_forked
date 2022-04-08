@@ -14,14 +14,13 @@ from text.metrics import compute_bleu_edll as compute_bleu
 from text.vocabulary import Vocabulary
 import time
 from numpy import count_nonzero as nnz
-import os
 
 from eddl_lib.uc5_dataset import Uc5Dataset
 from eddl_lib.recurrent_models import recurrent_lstm_model, nonrecurrent_lstm_model
 from eddl_lib.recurrent_models import generate_text
 import text.reports as reports
 from eddl_lib.jaccard import Jaccard
-from text.encoding import SimpleCollator2
+
 import neptune.new as neptune
 
 import pyeddl.eddl as eddl
@@ -42,9 +41,6 @@ class EddlRecurrentModule:
         self.thresholds = self.load_thresholds()
         self.cnn = self.load_cnn()
         self.ds = Uc5Dataset(self.conf, version="simple")
-        self.img_ds = pd.read_csv(join(self.conf["exp_fld"], "img_reports.tsv"), sep="\t").set_index("filename")
-        print(self.img_ds.columns)
-        self.img_ds["collated"] = self.preprocess_text(self.img_ds) 
         self.voc_size = self.ds.vocab.n_words
 
         if self.conf.load_file:
@@ -60,13 +56,6 @@ class EddlRecurrentModule:
         self.dataloader = self.create_dataloader()
 
     #<
-
-    def preprocess_text(self, df):
-        collator = SimpleCollator2()
-        n_tokens = self.conf["n_tokens"]
-        collated = df["enc_text"].apply(lambda s: collator.parse_and_collate(s, n_tokens))
-        return collated
-
 
     def create_dataloader(self):
         filename = join( self.conf["exp_fld"], "dataset.yml")
@@ -98,7 +87,7 @@ class EddlRecurrentModule:
 
         drop_last = {"training": True, "validation": (gpu and nnz(gpu)>1), "test": (gpu and nnz(gpu)>1)}
         multiplier = nnz(gpu) if gpu else 1
-        mult_bs = self.conf["batch_size"]
+        mult_bs = self.conf["bs"]
         augs = ecvl.DatasetAugmentations(augs=[train_augs, test_augs, test_augs])
         dataset = ecvl.DLDataset(filename, batch_size=mult_bs, augs=augs, 
             ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, 
@@ -218,19 +207,13 @@ class EddlRecurrentModule:
         print(f"cnn, top layer {cnn_top.output.shape}, output layer {cnn_out.output.shape}")
         rnn = self.rnn
 
-        # ds = self.ds        
-        # ds.set_stage("train")
-        dl = self.dataloader
-        dl.SetSplit(ecvl.SplitType.training)
-        n_training_batches = dl.GetNumBatches()
-        n_validation_batches = dl.GetNumBatches(ecvl.SplitType.validation)
-        n_test_batches = dl.GetNumBatches(ecvl.SplitType.test)
-        
+        ds = self.ds        
+        ds.set_stage("train")
         n_epochs = conf.n_epochs
-        # batch_ids = range(len(ds))
+        batch_ids = range(len(ds))
 
         if conf.dev:
-            # batch_ids = [0, len(ds)-1]  # first and last batch only
+            batch_ids = [0, len(ds)-1]  # first and last batch only
             n_epochs = 2
         #<
         
@@ -239,42 +222,28 @@ class EddlRecurrentModule:
 
         for ei in range(n_epochs):
             print(f">>> epoch {ei+1}/{n_epochs}")
-            dl.SetSplit(ecvl.SplitType.training)
-            dl.ResetBatch(shuffle=True)
-            dl.Start()
-            # ds.last_batch = conf.last_batch
-            # ds.set_stage("train")
-            # ds.shuffle()
+            ds.last_batch = conf.last_batch
+            ds.set_stage("train")
+            ds.shuffle()
             eddl.set_mode(rnn, 1)
             eddl.reset_loss(rnn)
             epoch_loss, epoch_acc = 0, 0
             valid_loss, valid_acc = 0, 0
             
             t1 = time.perf_counter()
-            for bi in range(n_training_batches):
+            for bi in batch_ids:
                 if bi % 100 == 0:
                     print(".", end="")
-                # images, _, texts = ds[bi]
-                I, X, Y = dl.GetBatch()
-                #for sample in I:
-                #    print(sample.location_)
-                image_ids = [os.path.basename(sample.location_[0]) for sample in I]
-                # for i_, x_ in enumerate(image_ids):
-                #     print(f"{i_}: >{x_}<")
-                #     print(f"{i_}: >{os.path.basename(x_)}<")
-                texts = self.img_ds.loc[image_ids, "collated"]
+                images, _, texts = ds[bi]
                 
-                texts = np.array(texts.tolist())
+                X = Tensor.fromarray(images)  # , dev=DEV_GPU)
                 
-                # X = Tensor.fromarray(images)  # , dev=DEV_GPU)
                 cnn.forward([X])
-                
                 cnn_semantic = eddl.getOutput(cnn_out)
                 cnn_visual = eddl.getOutput(cnn_top)
                 sem = np.array(cnn_semantic)
                 thresholded = self.apply_thresholds(sem)
                 thresholded = Tensor.fromarray(thresholded)
-                
                 Y = Tensor.fromarray(texts)
                 Y = Tensor.onehot(Y, self.voc_size)
                 
@@ -285,16 +254,15 @@ class EddlRecurrentModule:
                 epoch_loss += loss
                 epoch_acc += acc
                 if bi % 20 == 0:
-                    step = ei*n_training_batches + bi
+                    step = ei*len(ds) + bi
                     self.run["train/batch/loss"].log(loss, step=step)
                     self.run["train/batch/acc"].log(acc, step=step)
             #< batch
-            dl.Stop()
             epoch_end = time.perf_counter()
             print(f"epoch completed in {H.precisedelta(epoch_end-t1)}")
 
-            epoch_loss = epoch_loss / n_training_batches
-            epoch_acc = epoch_acc / n_training_batches
+            epoch_loss = epoch_loss / len(batch_ids)
+            epoch_acc = epoch_acc / len(batch_ids)
             self.run["training/epoch/loss"].log(epoch_loss)
             self.run["training/epoch/acc"].log(epoch_acc)
             self.run["time/training/epoch"].log(epoch_end-t1)
@@ -330,47 +298,34 @@ class EddlRecurrentModule:
     #<
 
     def validation(self):
-        # ds = self.ds
+        ds = self.ds
         cnn = self.cnn
         cnn_out = eddl.getLayer(cnn, "cnn_out")
         cnn_top = eddl.getLayer(cnn, "top")
         rnn = self.rnn
-        # ds.set_stage("valid")
-        dl = self.dataloader
-        dl.SetSplit(ecvl.SplitType.validation)
-        n_validation_batches = dl.GetNumBatches()
-        eddl.set_mode(rnn, 0)
-        eddl.reset_loss(rnn)
-        # batch_ids = list(range(len(ds)))
-        dl.ResetBatch(shuffle=True)
-        dl.Start()
+        ds.set_stage("valid")
+        batch_ids = list(range(len(ds)))
+        
         loss = 0
         acc = 0
-        for bi in range(n_validation_batches):
-            # images, _, texts = ds[bi]
-            I, X, Y = dl.GetBatch()
-            # X = Tensor.fromarray(images)
-            image_ids = [os.path.basename(sample.location_[0]) for sample in I]
-            texts = self.img_ds.loc[image_ids, "collated"]
-            texts = np.array(texts.tolist())
-
+        for bi in batch_ids:
+            images, _, texts = ds[bi]
+            X = Tensor.fromarray(images)
             cnn.forward([X])
             cnn_semantic = eddl.getOutput(cnn_out)
             cnn_visual = eddl.getOutput(cnn_top)
             thresholded = self.apply_thresholds(cnn_semantic)
             thresholded = Tensor.fromarray(thresholded)
+
             Y = Tensor.fromarray(texts)
             Y = Tensor.onehot(Y, self.voc_size)
-
-            # Y = Tensor.fromarray(texts)
-            # Y = Tensor.onehot(Y, self.voc_size)
             eddl.eval_batch(rnn, [cnn_visual, thresholded], [Y])
             loss += eddl.get_losses(rnn)[0]
             acc += eddl.get_metrics(rnn)[0]
         # for over batches
-        dl.Stop()
-        loss = loss / n_validation_batches
-        acc = acc / n_validation_batches
+        
+        loss = loss / len(ds)
+        acc = acc / len(ds)
         print(f"validation, loss: {loss:.2f}, acc: {acc:.2f}")
         return loss, acc
     #<
@@ -402,120 +357,6 @@ class EddlRecurrentModule:
 
     # uses a non-recurrent model for the predictions
     def predict(self, stage="test"):
-        self.rnn2 = self.build_model(for_predictions=True)
-        rnn = self.rnn2
-        
-        cnn = self.cnn
-        #> test on CPU (ISSUE related to eddl.getStates(.) when running on GPU)
-        eddl.toCPU(cnn) 
-        eddl.toCPU(rnn)
-        eddl.toCPU(self.rnn)
-        #<
-
-        dl = self.dataloader
-        dl.SetSplit(ecvl.SplitType.test)
-        n_test_batches = dl.GetNumBatches()
-
-        #> copy parameters from the trained recurrent network (see recurrent_models.py for layer names)
-        layers_to_copy = [
-            "visual_features", "dense_alpha_v",
-             "co_attention",  # "dense_alpha_s", "semantic_features" removed: not it is an input
-            "lstm_cell", "out_dense", "word_embs"
-        ]
-        for l in layers_to_copy:
-            eddl.copyParam(eddl.getLayer(self.rnn, l), eddl.getLayer(rnn, l))
-        #<
-        
-        #> save the model for predictions
-        fn = self.conf.out_fn
-        onnx_fn = fn.replace(".onnx", "_pred.onnx")
-        bin_fn = onnx_fn.replace(".onnx", ".bin")
-        eddl.save_net_to_onnx_file(rnn, onnx_fn)
-        eddl.save(rnn, bin_fn)
-        print(f"recurrent model used for predictions saved at:")
-        print(f"\t - onnx: {onnx_fn}")
-        print(f"\t - bin: {bin_fn}")
-
-        #> connection cnn -> rnn
-        # image_in = eddl.getLayer(cnn, "input") 
-        cnn_out = eddl.getLayer(cnn, "cnn_out")
-        cnn_top = eddl.getLayer(cnn, "top")
-        #<
-
-        eddl.set_mode(rnn, mode=0)
-        ds = self.ds
-        ds.set_stage(stage)
-        dev = self.conf.dev
-        n_tokens = self.conf.n_tokens
-
-        #>
-        # batch size, can be set to 1 for clarity
-        # print(f"1: {len(ds)}")
-        # ds.batch_size = 1
-        # print(f"2: {len(ds)}")
-        ds.last_batch = "drop"
-        # bs = ds.batch_size
-        bs = self.conf["batch_size"]
-        print(f"text generation on {stage}, using batches of size: {bs}")
-        #< 
-        
-        #> for over test dataset
-        bleu = 0
-        generated_word_idxs = np.zeros( (bs * len(ds), n_tokens), dtype=int)
-        t1 = time.perf_counter()
-        dl.Start()
-        for i in range(n_test_batches):
-            I, X, Y = dl.GetBatch()
-            image_ids = [os.path.basename(sample.location_[0]) for sample in I]
-            texts = self.img_ds.loc[image_ids, "collated"]
-            texts = np.array(texts.tolist())
-            current_bs = texts.shape[0]
-            #> cnn forward
-            
-            eddl.forward(cnn, [X])
-            cnn_semantic = eddl.getOutput(cnn_out)
-            cnn_visual = eddl.getOutput(cnn_top)
-            thresholded = self.apply_thresholds(cnn_semantic)
-            thresholded = Tensor.fromarray(thresholded)
-            #<
-            if dev: 
-                print(f"batch, images: {X.shape}")
-                print(f"\t- output. semantic: {cnn_semantic.shape}, visual: {cnn_visual.shape}")
-                     
-            batch_gen = \
-                generate_text(rnn, n_tokens, visual_batch=cnn_visual, semantic_batch=thresholded, dev=False)
-            
-            generated_word_idxs[i*bs:i*bs+current_bs, :] = batch_gen
-            # measure bleu
-            bleu += compute_bleu(batch_gen, texts)
-            # if dev:
-            #     for i in range(images.shape[0]):
-            #         print(f"*** batch {i+1} / {len(ds)} gen word idxs ***")
-            #         print(batch_gen[i, :])
-            if dev:
-                break
-        dl.Stop()
-        #< for i over batches in the test dataset
-        t2 = time.perf_counter()
-        print(f"text generation on {stage} in {H.precisedelta(t2-t1)}")
-        bleu = bleu / len(ds)
-        self.run[f"{stage}/bleu"] = bleu
-        self.run[f"{stage}/time"] = t2 - t1
-
-        rnn = None
-        self.rnn2 = None
-        gc.collect()
-
-        if self.conf.eddl_cs == "gpu":
-            print("moving modules back to GPU")
-            eddl.toGPU(self.rnn)
-            eddl.toGPU(self.cnn)
-
-        return bleu, generated_word_idxs
-    #< predict
-
-        # uses a non-recurrent model for the predictions
-    def predict_old(self, stage="test"):
         self.rnn2 = self.build_model(for_predictions=True)
         rnn = self.rnn2
         
@@ -615,5 +456,5 @@ class EddlRecurrentModule:
             eddl.toGPU(self.cnn)
 
         return bleu, generated_word_idxs
-    #< predict_old
+    #< predict
 #< class

@@ -39,10 +39,11 @@ def train(in_tsv,
          debug = False,
          dev = False,
          remote_log = False):
+    
     config=locals()
     rec_mod = EddlRecurrentModule(config)
     rec_mod.train()
-    rec_mod.save()  # save ok, but cannot be loaded (error)
+    rec_mod.save()  # save ok, but cannot be loaded (error) - check 2022-04: ? TODO
     bleu, gen_wis = rec_mod.predict()
     print(f"BLEU score on test set: {bleu:.3f}")
    
