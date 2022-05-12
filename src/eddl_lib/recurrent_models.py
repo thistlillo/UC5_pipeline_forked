@@ -12,6 +12,21 @@ from text.metrics import compute_bleu_edll as compute_bleu
 def _shared_top(visual_dim, semantic_dim, emb_size, init_v):
     # INPUT: visual features
     cnn_top_in = eddl.Input([visual_dim], name="in_visual_features")
+    #visual_features = eddl.RandomUniform(eddl.Dense(cnn_top_in, cnn_top_in.output.shape[1], name="visual_features"), -init_v, init_v)
+    #alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1], name="dense_alpha_v"), name="alpha_v")  # missing sentence component
+    #v_att = eddl.Mult(alpha_v, visual_features)
+    #print(f"layer visual features: {visual_features.output.shape}")
+    
+    cnn_semantic_in = eddl.Input([semantic_dim], name="in_semantic_features")
+
+    features = eddl.Concat([cnn_top_in, cnn_semantic_in], name="co_attention")  # there is no coattention, name kept for subsequent models
+    #context = eddl.RandomUniform(eddl.Dense(features, emb_size, name="co_attention"), -2*init_v, 2*init_v)
+    #print(f"layer coattention: {context.output.shape}")
+    return cnn_top_in, cnn_semantic_in, features
+
+def _shared_top_v2(visual_dim, semantic_dim, emb_size, init_v):
+    # INPUT: visual features
+    cnn_top_in = eddl.Input([visual_dim], name="in_visual_features")
     visual_features = eddl.RandomUniform(eddl.Dense(cnn_top_in, cnn_top_in.output.shape[1], name="visual_features"), -init_v, init_v)
     alpha_v = eddl.Softmax(eddl.Dense(eddl.Tanh(visual_features), visual_features.output.shape[1], name="dense_alpha_v"), name="alpha_v")  # missing sentence component
     v_att = eddl.Mult(alpha_v, visual_features)
@@ -128,7 +143,7 @@ def generate_text(rnn, n_tokens, visual_batch=None, semantic_batch=None, dev=Fal
         out_soft = eddl.getOutput(last_layer)
         # pass control to numpy for argmax
         wis = np.argmax(out_soft, axis=-1)
-        print(wis)
+        # print(wis)
         # if dev:
         #     print(wis.shape)
         #     print(f"next_token {wis[0]}")

@@ -102,7 +102,7 @@ class EddlRecurrentModule:
         augs = ecvl.DatasetAugmentations(augs=[train_augs, test_augs, test_augs])
         dataset = ecvl.DLDataset(filename, batch_size=mult_bs, augs=augs, 
             ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, 
-            num_workers=4*nnz(gpu), queue_ratio_size=4, drop_last=drop_last)
+            num_workers=8*nnz(gpu), queue_ratio_size=5, drop_last=drop_last)
         return dataset
         
 
@@ -149,7 +149,7 @@ class EddlRecurrentModule:
         print(f"cnn input shape {cnn.layers[0].input.shape}")
         print(f"cnn output shape {cnn.layers[-1].output.shape}")
         
-        eddl.build(cnn, eddl.adam(0.01), ["softmax_cross_entropy"], ["accuracy"], # not relevant: it is used only in forwarding
+        eddl.build(cnn, eddl.adam(0.0001), ["softmax_cross_entropy"], ["accuracy"], # not relevant: it is used only in forwarding
             self.comp_serv(), init_weights=False)
         print("cnn model built successfully")
         for name in [_.name for _ in cnn.layers]:
@@ -182,6 +182,7 @@ class EddlRecurrentModule:
     def get_optimizer(self):
         opt_name = self.conf.optimizer
         if opt_name == "adam":
+            print(f"using learning rate: {self.conf.lr}")
             return eddl.adam(lr=self.conf.lr)
         elif opt_name == "cyclic":
             return eddl.sgd(lr=0.001)
@@ -198,7 +199,9 @@ class EddlRecurrentModule:
             rnn = self.create_model(visual_dim, semantic_dim, for_predictions=for_predictions)
         
         optimizer = self.get_optimizer()
-        eddl.build(rnn, optimizer, ["softmax_cross_entropy"], ["accuracy"], eddl.CS_CPU() if for_predictions else self.comp_serv(), init_weights=do_init_weights)
+        print(f"building recurrent model, initialization? {do_init_weights}")
+        eddl.build(rnn, optimizer, ["softmax_cross_entropy"], ["accuracy"], 
+            eddl.CS_CPU() if for_predictions else self.comp_serv(), init_weights=do_init_weights)
         
         #for name in [_.name for _ in rnn.layers]:
         #    eddl.initializeLayer(rnn, name)
@@ -211,6 +214,7 @@ class EddlRecurrentModule:
     def train(self):
         print("*" * 50)
         conf = self.conf
+        print("* output folder:", conf["exp_fld"])
         
         cnn = self.cnn
         cnn_out = eddl.getLayer(cnn, "cnn_out")
@@ -236,7 +240,8 @@ class EddlRecurrentModule:
         
         # self.run["params/activation"] = self.activation_name
         start_train_t = time.perf_counter()
-
+        best_train_acc = 0
+        best_valid_acc = 0
         for ei in range(n_epochs):
             print(f">>> epoch {ei+1}/{n_epochs}")
             dl.SetSplit(ecvl.SplitType.training)
@@ -258,7 +263,10 @@ class EddlRecurrentModule:
                 I, X, Y = dl.GetBatch()
                 #for sample in I:
                 #    print(sample.location_)
+                
+                # unfortunately there are two versions of img_reports.tsv with image names or full paths
                 image_ids = [os.path.basename(sample.location_[0]) for sample in I]
+                # image_ids = [sample.location_[0] for sample in I]
                 # for i_, x_ in enumerate(image_ids):
                 #     print(f"{i_}: >{x_}<")
                 #     print(f"{i_}: >{os.path.basename(x_)}<")
@@ -288,6 +296,8 @@ class EddlRecurrentModule:
                     step = ei*n_training_batches + bi
                     self.run["train/batch/loss"].log(loss, step=step)
                     self.run["train/batch/acc"].log(acc, step=step)
+
+                
             #< batch
             dl.Stop()
             epoch_end = time.perf_counter()
@@ -298,7 +308,10 @@ class EddlRecurrentModule:
             self.run["training/epoch/loss"].log(epoch_loss)
             self.run["training/epoch/acc"].log(epoch_acc)
             self.run["time/training/epoch"].log(epoch_end-t1)
-            
+            if best_train_acc < epoch_acc:
+                best_train_acc = epoch_acc
+                self.save("recurrent_best_train")
+        
             expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
             if ei != n_epochs - 1:
                 print(f"rnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
@@ -314,7 +327,11 @@ class EddlRecurrentModule:
                 continue
 
             val_start = time.perf_counter()
+        
             valid_loss, valid_acc = self.validation()
+            if best_valid_acc < valid_acc:
+                best_valid_acc = valid_acc
+                self.save("recurrent_best_valid")
 
             val_end = time.perf_counter()
             self.run["validation/epoch/loss"].log(valid_loss, step=ei)
@@ -325,7 +342,7 @@ class EddlRecurrentModule:
             self.run["time/train+val/epoch"].log(val_end - t1, step=ei)
         #< epoch
         end_train_t = time.perf_counter()
-        self.save()
+        self.save("end_of_training_rec")
         print(f"rnn training complete: {H.precisedelta(end_train_t - start_train_t)}")
     #<
 
@@ -351,6 +368,7 @@ class EddlRecurrentModule:
             I, X, Y = dl.GetBatch()
             # X = Tensor.fromarray(images)
             image_ids = [os.path.basename(sample.location_[0]) for sample in I]
+            # image_ids = [sample.location_[0] for sample in I]
             texts = self.img_ds.loc[image_ids, "collated"]
             texts = np.array(texts.tolist())
 
@@ -384,19 +402,30 @@ class EddlRecurrentModule:
         return self.rnn
     #<
 
-    def save_checkpoint(self, filename="rec_checkpoint.bin"):
-        filename = join( self.conf.exp_fld, filename)
-        rnn, top_section = self.get_network();
-        eddl.save(self.get_network(), filename)
-        print(f"saved checkpoint for the recurrent model (.bin format): {filename}")
+    def save_checkpoint(self, filename="rec_checkpoint"):
+        if filename.endswith(".onnx"):
+            filename = filename[:-len(".onnnx")]
+        elif filename.endswith(".bin"):
+            filename = filename[:-len(".bin")]
+        
+        filename = join( self.conf.exp_fld, filename + ".bin")
+        rnn = self.get_network();
+        eddl.save(rnn, filename)
+        eddl.save_net_to_onnx_file(rnn, filename + ".onnx")
+        print(f"saved checkpoint for the recurrent model bin|onnx format: {filename}")
+    #<
 
-    def save(self, filename=None):
-        filename = join(self.conf.exp_fld, filename) if filename else self.conf.out_fn
-        eddl.save_net_to_onnx_file(self.get_network(), filename)
-        bin_out_fn = self.conf.out_fn.replace(".onnx", ".bin")
-        eddl.save(self.get_network(), bin_out_fn)
-        print(f"onnx trained recurrent model saved at: {self.conf.out_fn}")
-        print(f"\t  binary model saved at: {bin_out_fn}")
+    def save(self, filename="recurrent_module"):
+        if filename.endswith(".onnx"):
+            filename = filename[:-len(".onnnx")]
+        elif filename.endswith(".bin"):
+            filename = filename[:-len(".bin")]
+    
+        filename = join(self.conf.exp_fld, filename)
+        eddl.save_net_to_onnx_file(self.get_network(), filename + ".onnx")
+        #bin_out_fn = self.conf.out_fn.replace(".onnx", ".bin")
+        eddl.save(self.get_network(), filename + ".bin")
+        print(f"trained recurrent model saved at: {filename} [bin onnx]")
         return filename
     #<
 
@@ -418,7 +447,7 @@ class EddlRecurrentModule:
 
         #> copy parameters from the trained recurrent network (see recurrent_models.py for layer names)
         layers_to_copy = [
-            "visual_features", "dense_alpha_v",
+            #"visual_features", "dense_alpha_v",
              "co_attention",  # "dense_alpha_s", "semantic_features" removed: not it is an input
             "lstm_cell", "out_dense", "word_embs"
         ]
@@ -467,7 +496,9 @@ class EddlRecurrentModule:
         for i in range(n_test_batches):
             I, X, Y = dl.GetBatch()
             image_ids = [os.path.basename(sample.location_[0]) for sample in I]
+            # image_ids = [sample.location_[0] for sample in I]
             texts = self.img_ds.loc[image_ids, "collated"]
+            
             texts = np.array(texts.tolist())
             current_bs = texts.shape[0]
             #> cnn forward

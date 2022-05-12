@@ -113,8 +113,8 @@ class EddlCnnModule_ecvl:
     def get_loss_name(self):
         name = "softmax_cross_entropy"
         print("output layer:", self.out_layer_act)
-        if self.out_layer_act == "sigmoid":
-            name = "binary_cross_entropy"
+        # if self.out_layer_act == "sigmoid":
+        #     name = "binary_cross_entropy"
         
         return name
     #<
@@ -131,7 +131,7 @@ class EddlCnnModule_ecvl:
     #<
 
     def download_base_cnn(self, top=True):
-        return eddl.download_resnet101(top=top)  #, input_shape=[1, 224, 224]) 
+        return eddl.download_resnet18(top=top)  #, input_shape=[1, 224, 224]) 
     #<
 
     # returns an output layer with the activation specified via cli
@@ -153,10 +153,16 @@ class EddlCnnModule_ecvl:
         return res
     #<
 
-    def create_cnn(self):
+    def create_cnn(self, fine_tune=False):
         remove_top_layer = True
         base_cnn = self.download_base_cnn(top=remove_top_layer)  # top=True -> remove output layer    
         self.layer_names = [_.name for _ in base_cnn.layers]
+        if not fine_tune:
+            print("no fine tuning")
+            for layer in self.layer_names:
+                eddl.setTrainable(base_cnn, layer, False)
+        else:
+            print("fine tuning all layers")
         cnn_in = eddl.getLayer(base_cnn, "input")
         cnn_top = eddl.getLayer(base_cnn, "top")
         cnn_out = self.get_out_layer(cnn_top)
@@ -167,7 +173,7 @@ class EddlCnnModule_ecvl:
 
     def build_cnn(self, cnn=None):
         if cnn is None:
-            cnn = self.create_cnn()
+            cnn = self.create_cnn(self.conf.fine_tune)
         #<
         loss_str = self.get_loss_name()
         optimizer = self.get_optimizer()
@@ -192,6 +198,10 @@ class EddlCnnModule_ecvl:
 
 
     def train(self):
+        print("training is starting")
+        print("exp folder:", self.conf.exp_fld)
+        print("out folder:", self.conf.out_fld)
+        
         ds = self.ds
         cnn = self.get_network()
         
@@ -206,12 +216,17 @@ class EddlCnnModule_ecvl:
 
         epoch_loss = 0
         epoch_acc = 0
-        best_training_loss = 0
+        best_training_loss = 1000
         best_training_acc = 0
+
+        running_train_best_loss = 1000
 
         early_stop = False  # set to True if the patience threshold is reached during training
         start_train_t = time.perf_counter()
         self.run[f"{self.name}-train/start_time"] = start_train_t
+        train_t = []
+        valid_t = []
+
         for ei in range(n_epochs):
             if self.conf.dev and ei == 2:
                 break
@@ -247,7 +262,9 @@ class EddlCnnModule_ecvl:
             ds.Stop()
             epoch_end = time.perf_counter()
             # print(f"\t time: {H.precisedelta(t2-t1)}")
-            print(f"training epoch completed in {H.precisedelta(epoch_end-t1)}")
+            train_t.append(epoch_end-t1)
+            print(f"training epoch completed in {train_t[-1]}")
+            print(f"avg training time: {np.mean(train_t)}")
 
             # loss
             epoch_loss = epoch_loss / n_training_batches
@@ -256,8 +273,14 @@ class EddlCnnModule_ecvl:
             self.run[f"{self.name}-training/epoch/acc"].log(epoch_acc)
             #<
 
+            print(f"current epoch loss: {epoch_loss:.2f}, best: {running_train_best_loss:.2f}")
+            if epoch_loss < running_train_best_loss:
+                running_train_best_loss = epoch_loss
+                eddl.save(cnn, join(self.conf.out_fld, "cnn_best_training.bin"))
+                print("best training model saved")
+
             self.run[f"{self.name}-time/training/epoch"].log(epoch_end- t1, step=ei)
-            expected_t = (epoch_end - start_train_t) * (n_epochs - ei - 1) / (ei+1)
+            expected_t = (epoch_end - start_train_t) * (250 - ei - 1) / (ei+1)
             print(f"cnn expected training time (without early beaking): {H.precisedelta(expected_t)}")
 
             if (not self.conf.dev) and ( (ei + 1 ) % self.conf["check_val_every"] != 0 ):
@@ -281,7 +304,8 @@ class EddlCnnModule_ecvl:
             #< patience and checkpoint
             if valid_loss < self.best_validation_loss:
                 # save checkpoint
-                print(f"saving checkpoint, epoch {ei}")
+                print(f"epoch {ei}, current validation loss {valid_loss:.2f}, best: {self.best_validation_loss:.2f}")
+                print(f"saving checkpoint at epoch {ei}")
                 self.save_checkpoint()
                 # if patience is running, reset patience
                 if self.patience_run > (self.patience // 2):
@@ -289,7 +313,7 @@ class EddlCnnModule_ecvl:
                 self.patience_run = 0
                 self.best_validation_loss = valid_loss
                 self.best_validation_acc = valid_acc
-                best_training_loss = epoch_loss
+                best_training_loss = epoch_loss  # training loss of the best model according to valid loss
                 best_training_acc = epoch_acc
             elif ei > self.patience_kick_in:
                 self.patience_run += 1
@@ -362,6 +386,7 @@ class EddlCnnModule_ecvl:
     def save_checkpoint(self, filename="cnn_checkpoint.onnx"):
         filename = join(self.conf.out_fld, filename)
         eddl.save_net_to_onnx_file(self.get_network(), filename)
+        eddl.save(self.get_network(), filename.replace(".onnx", ".bin"))
         print(f"saved checkpoint: {filename}")
     #<
     def load_checkpoint(self, filename="cnn_checkpoint.onnx"):

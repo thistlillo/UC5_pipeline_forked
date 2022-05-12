@@ -25,7 +25,7 @@ def train(in_tsv,
          eddl_cs = "cpu",
          gpu_id =[3],
          optimizer = "adam",
-         lr = 0.09, 
+         lr = 0.0001, 
          momentum = 0.9,
          lstm_size = 512,
          emb_size = 512,
@@ -38,7 +38,8 @@ def train(in_tsv,
          verbose = False,
          debug = False,
          dev = False,
-         remote_log = False):
+         remote_log = False,
+         label_col = "auto_term"):
     
     config=locals()
     rec_mod = EddlRecurrentModule(config)

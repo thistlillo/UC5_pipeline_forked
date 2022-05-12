@@ -98,7 +98,7 @@ def full_training(out_fld, cnn, ds, run, config):
     n_validation_batches = ds.GetNumBatches(ecvl.SplitType.validation)
     n_test_batches = ds.GetNumBatches(ecvl.SplitType.test)
 
-    stop_criterion = UpEarlyStopping(i=3, k=3)
+    stop_criterion = UpEarlyStopping(i=4, k=5)
     progress_criterion = ProgressEarlyStopping()
     ei = 0
     losses, accs = [], []
@@ -155,7 +155,7 @@ def full_training(out_fld, cnn, ds, run, config):
         run[f"{name}/valid/acc"].log(v_acc, step=ei)
         print(f"{v_acc:.2f} > {best_v_acc:.2f}?")
         if v_acc > best_v_acc:
-            # eddl.save_net_to_onnx_file(cnn, join(out_fld, "best_val_acc_chkp.onnx"))
+            eddl.save_net_to_onnx_file(cnn, join(out_fld, "best_val_acc_chkp.onnx"))
             eddl.save( cnn, join(out_fld, "best_val_acc_chkp.bin") )
             print(f"{v_acc:.2f} > {best_v_acc:.2f}, saved: {join(out_fld, 'best_val_acc_chkp.bin')}")
             best_v_acc = v_acc

@@ -71,6 +71,10 @@ class Uc5Dataset:
         # input files
         self.tsv = pd.read_csv(self.in_tsv, sep=reports.csv_sep, na_filter=False)
         self.tsv.set_index("filename", inplace=True, drop=False)
+        if "labels" not in self.tsv.columns:
+            lab_col = self.conf["label_col"]
+            self.tsv["labels"] = self.tsv[lab_col]
+        
         print(f"input dataset read. index: {self.tsv.index.name}")
 
         with open(join(self.exp_fld, "lab2index.json"), "r") as fin:

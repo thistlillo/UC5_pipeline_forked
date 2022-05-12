@@ -14,6 +14,25 @@ import random
 
 import text.reports as reports
 
+def make_splits_without_normal(ds, train_p, valid_p, shuffle_seed, rdm=None):
+    print("splitting without normal images")
+    if rdm is None:
+        rdm = random.Random()
+        rdm.seed(shuffle_seed)
+        print(f"using shuffling seed: {shuffle_seed}")
+    #
+    def split(idxs):
+        rdm.shuffle(idxs)
+        n = len(idxs)
+        n_tr, n_va = math.ceil(n * train_p), math.ceil(n * valid_p)
+        n_te = n - n_tr - n_va
+        print(f"(pos or neg, msg intentionally repeated) requested test size: {(1-train_p-valid_p) * n:.2f}, actual size: {n_te}")
+        return idxs[:n_tr], idxs[n_tr:n_tr+n_va], idxs[n_tr+n_va:]
+    all_index = ds.index.values
+    training, validation, test = split(all_index)
+    print("split done.")
+    return training.tolist(), validation.tolist(), test.tolist()
+
 
 def make_splits(ds, train_p, valid_p, shuffle_seed, normal_lab, rdm=None):
     negs = ds.labels.apply(lambda l: normal_lab in l)

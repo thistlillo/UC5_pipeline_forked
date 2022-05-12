@@ -1,7 +1,6 @@
 THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
 $(warning running makefile: ${THIS_MAKEFILE})
 
-EXP_NAME = eddl_test_remove
 CNN_IMAGE_SIZE = 224
 SEED = 10
 SHUFFLE_SEED = 40
@@ -13,6 +12,8 @@ TEXT_FLD = $(BASE_DS_FLD)/text
 PYTHON = python3
 BASE_OUT_FLD = ../experiments_eddl
 
+# EXP_NAME = without_normal_finetune
+EXP_NAME = with_normal_finetune
 EXP_FLD  =$(BASE_OUT_FLD)/$(EXP_NAME)_$(SEED)
 $(warning output folder for the experiment: ${EXP_FLD})
 
@@ -21,22 +22,31 @@ $(EXP_FLD)/reports_raw.tsv:
 preprocess:
 	$(shell mkdir -p $(EXP_FLD))
 	$(PYTHON) 00_preprocess.py --out_fld=$(EXP_FLD) --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) \
-		--min_term_freq_mesh=100 --min_term_freq_auto=100
+		--min_term_freq_mesh=120 --min_term_freq_auto=120
 
+preprocess_without_normal:
+	$(shell mkdir -p $(EXP_FLD))
+	$(PYTHON) 00_preprocess.py --out_fld=$(EXP_FLD) --txt_fld=$(TEXT_FLD) --img_fld=$(IMAGE_FLD) \
+		--min_term_freq_mesh=120 --min_term_freq_auto=120 --remove_normal_class=True
 #preprocess: $(EXP_FLD)/reports_raw.tsv
 
 dataset:
 	$(PYTHON) 01_train.py prepare_training --descr=$(EXP_NAME) --exp_fld=$(EXP_FLD) \
-	--train_p=0.7 --valid_p=0.1 --shuffle_seed=$(SHUFFLE_SEED) --labels=mesh
+	--train_p=0.7 --valid_p=0.1 --shuffle_seed=$(SHUFFLE_SEED) --labels=auto --use_normal_class=True
+
+
+dataset_without_normal:
+	$(PYTHON) 01_train.py prepare_training --descr=$(EXP_NAME) --exp_fld=$(EXP_FLD) \
+	--train_p=0.7 --valid_p=0.1 --shuffle_seed=$(SHUFFLE_SEED) --labels=auto --use_normal_class=False
 
 train_cnn:
 	@cp $(THIS_MAKEFILE) $(EXP_FLD)
 	$(warning training cnn, folder: ${EXP_FLD})
 	$(PYTHON) 01_train.py train_cnn --exp_fld=$(EXP_FLD) \
-		--n_epochs=2000 --batch_size=[64,128] --learning_rate=[0.01,0.02,0.05,0.09] \
+		--n_epochs=1000 --batch_size=[128] --learning_rate=[0.0001] \
 		--seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED) --verbose=True --dev=False \
-		--gpu_id=[0,0,1,1] --description="resnet 101" \
-		--remote_log=True
+		--gpu_id=[1,1,0,0] --description="without normal" \
+		--remote_log=True --fine_tune=True
 
 mean_iu-chest:
 	$(PYTHON) utils/mean_and_variance.py --img_fld=$(IMAGE_FLD) --dataset=iu-chest
@@ -74,7 +84,7 @@ cnn_normal_ll_only:
 	$(PYTHON) cnn_normal.py --bs=128 --gpu=[1,1,1,1]
 
 cnn_normal_fine_tune:
-	$(PYTHON) cnn_normal.py --bs=128 --gpu=[1,1,1,1] --fine_tune=1
+	$(PYTHON) cnn_normal.py --bs=256 --gpu=[1,1,1,1] --fine_tune=1
 
 clean:
 	rm -f $(EXP_FLD)/reports_raw.tsv

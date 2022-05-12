@@ -23,8 +23,11 @@ class Vocabulary:
     PAD_I = 0  # mask_zeros
     BOS_I = 1
     EOS_I = 2
+    OOV_I = 3
     
-    EXTRA_TOKENS = {PAD:PAD_I, BOS:BOS_I, EOS:EOS_I}
+    # ET = [PAD, BOS, EOS, OOV]
+    # EXTRA_TOKENS = {token:i for i, token in enumerate(ET)}
+    EXTRA_TOKENS = {PAD:PAD_I, BOS:BOS_I, EOS:EOS_I, OOV:OOV_I}
     EXTRA_TOKENS_I = EXTRA_TOKENS.values()
     
     def __init__(self, name="", verbose=False, debug=False):

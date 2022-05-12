@@ -27,18 +27,19 @@ test_augs_gs =  lambda x: ecvl.SequentialAugmentationContainer([
 
 train_augs = lambda x: ecvl.SequentialAugmentationContainer([
                 ecvl.AugResizeDim([300, 300]),
-                ecvl.AugRandomCrop([x, x]),  # XXX should be parametric, for resnet 18
+                ecvl.AugRotate([-5,5]),
                 ecvl.AugToFloat32(divisor=255.0),
                 ecvl.AugNormalize(mean, std),
-            ])
+                ecvl.AugRandomCrop([x, x])
+        ])
 
 test_augs =  lambda x: ecvl.SequentialAugmentationContainer([
-                ecvl.AugResizeDim([300, 300]),
-                ecvl.AugCenterCrop([x, x]),
-                # ecvl.AugRandomCrop([size, size]),  # XXX should be parametric, for resnet 18
-                ecvl.AugToFloat32(divisor=255.0),
-                ecvl.AugNormalize(mean, std),
-            ])
+                    ecvl.AugResizeDim([300, 300]),
+                    # ecvl.AugRandomCrop([size, size]),  # XXX should be parametric, for resnet 18
+                    ecvl.AugToFloat32(divisor=255.0),
+                    ecvl.AugNormalize(mean, std),
+                    ecvl.AugCenterCrop([x, x])
+                ])
 
 # train_augs = ecvl.SequentialAugmentationContainer([
 #                 ecvl.AugResizeDim([300, 300]),

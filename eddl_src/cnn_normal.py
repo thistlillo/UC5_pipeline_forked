@@ -40,7 +40,9 @@ def validation(cnn: eddl.Model, ds:ecvl.DLDataset, do_test=False):
     ds.SetSplit(ecvl.SplitType.validation if not do_test else ecvl.SplitType.test)
     ds.ResetBatch(shuffle=True)
     n_batches = ds.GetNumBatches()
-        
+    stage = "test" if do_test else "validation"
+    print(f"{stage} set: {n_batches} batches")
+
     loss = 0
     acc = 0
     ds.Start()
@@ -76,7 +78,37 @@ def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, r
     accs = []
     v_accs = []
 
-    print("training starts")
+    print(f"training starts, epochs {n_epochs}, train batches: {n_training_batches}, validation batches: {n_validation_batches}")
+    for epoch in range(n_epochs):
+        ds.ResetBatch(shuffle=True)
+        ds.Start()
+        for bi in tqdm(range(n_training_batches)):
+            _, X, Y = ds.GetBatch()
+            #X = Tensor.fromarray(images)
+            #Y = Tensor.fromarray(labels)
+            eddl.train_batch(cnn, [X], [Y])
+        ds.Stop()
+        loss, acc = validation(cnn, ds, do_test=False)
+        v_loss, v_acc = validation(cnn, ds, do_test=True)
+        losses.append(loss)
+        v_losses.append(v_loss)
+        accs.append(acc)
+        v_accs.append(v_acc)
+        print(f"epoch {epoch}, loss: {loss:.4f}, acc: {acc:.4f}, validation loss: {v_loss:.4f}, validation acc: {v_acc:.4f}")
+        if v_loss < best_v_loss:
+            best_v_loss = v_loss
+            best_v_acc = v_acc
+            patience_run = 0
+            if fine_tune > 0:
+                for layer_name in base_layer_names:
+                    eddl.setTrainable(cnn, layer_name, True)
+        else:
+            patience_run += 1
+            if patience_run > patience_kick_in:
+                break
+    ds.Stop()
+    print(f"training finished, best validation loss: {best_v_loss:.4f}, best validation acc: {best_v_acc:.4f}")
+   
     for ei in range(n_epochs):
         epoch_loss = 0
         epoch_acc = 0
@@ -108,7 +140,10 @@ def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, r
         run[f"{name}/valid/loss"].log(v_losses[-1], step=ei)
         run[f"{name}/valid/acc"].log(v_accs[-1], step=ei)
         if v_acc > best_v_acc:
-            eddl.save_net_to_onnx_file(cnn, join(out_fld, "best_val_acc_chkp.onnx"))
+            out_fn = join(out_fld, "best_val_acc_chkp.onnx")
+            eddl.save_net_to_onnx_file(cnn, out_fn)
+            eddl.save(cnn, out_fn.replace(".onnx", ".bin"))
+            print(f"ei={ei}, saved: {out_fn} and onnx")
 
         print("test")
         t_loss, t_acc = validation(cnn, ds, do_test=True)
@@ -118,18 +153,30 @@ def training(cnn: eddl.Model, ds: ecvl.DLDataset, n_epochs: int, out_fld: str, r
 
         print(f"{ei+1}/{n_epochs}: loss {losses[-1]:.2f}, acc {accs[-1]:.2f}")
         print(f"{ei+1}/{n_epochs}, validation: loss {v_losses[-1]:.2f}, acc {v_accs[-1]:.2f}")
-        if (ei==2) and (fine_tune==1):
-            for l in base_layer_names:
-                eddl.setTrainable(cnn, l, 0)
-
+        # if (ei==2) and (fine_tune==1):
+        #     for l in base_layer_names:
+        #         eddl.setTrainable(cnn, l, 0)
     #<
+    results = dict(
+        train_loss = losses,
+        valid_loss = v_losses,
+        test_loss = t_loss,
+        train_acc = accs,
+        valid_acc = v_accs,
+        test_acc = t_acc
+    )
+    res_ofn = join(out_fld, "results.tsv")
+    df = pd.DataFrame.from_dict(results)
+    df.to_csv(res_ofn, sep="\t", index=False)
+    print(f"saved results to {res_ofn}")
+    print("train ends here. all done.")
 #< train
             
 
 def ecvl_yaml(filenames, labels, train_ids, valid_ids, test_ids):
     d = {
-        "name"        : "frontal-lateral",
-        "description" : "iu frontal-lateral images",
+        "name"        : "normal-not_normal",
+        "description" : "iu frontal-not_normal",
         "classes"     : [], 
         "images"      : [],
         "split"       : dict(training = train_ids, 
@@ -147,12 +194,12 @@ def ecvl_yaml(filenames, labels, train_ids, valid_ids, test_ids):
     return d
 
 # --------------------------------------------------
-def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, bs=128, gpu=None, fine_tune=0):
+def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, bs=64, gpu=None, fine_tune=0):
     ds = pd.read_csv( "/mnt/datasets/uc5/std-dataset/img_ds_no_text.tsv", sep="\t", na_filter=False, index_col="image_filename")
     # ds = pd.read_csv( "/opt/uc5/results/eddl_exp/eddl_phi2_exp-eddl_phi2_100_2000/img_reports_phi2_enc.tsv", sep="\t", na_filter=False, index_col="filename")
     
     img_fld = "/mnt/datasets/uc5/std-dataset/image"
-    out_fld = "/opt/uc5/results/eddl_exp/normal_vs_rest"
+    out_fld = "/opt/uc5/results/eddl_exp/iu_normal_vs_rest"
     os.makedirs(out_fld, exist_ok=True)
     
     #>
@@ -240,15 +287,16 @@ def main(base_net="resnet18", seed=2, shuffle_seed=11, valid_p=0.1, dev=False, b
             yaml.safe_dump(dataset, fout, default_flow_style=True)
         
         # ---
-        num_workers = 4 * nnz(gpu) if gpu else 8
+        num_workers = 6 * nnz(gpu) if gpu else 8
        
         drop_last = {"training": True, "validation": (gpu and nnz(gpu)>1), "test": (gpu and nnz(gpu)>1)}
 
         augs = ecvl.DatasetAugmentations(augs=[train_augs, test_augs, test_augs])
         multiplier = 1 if not gpu else nnz(gpu)
-        mult_bs = bs * multiplier
-        print(f"batch size {bs} * {multiplier} = {mult_bs}")
-        dataset = ecvl.DLDataset(join(kfold_out, "dataset.yml"), batch_size=mult_bs, augs=augs, 
+        
+        print("using batch size: ", bs)
+        
+        dataset = ecvl.DLDataset(join(kfold_out, "dataset.yml"), batch_size=bs, augs=augs, 
             ctype=ecvl.ColorType.RGB, ctype_gt=ecvl.ColorType.GRAY, 
             num_workers=num_workers, queue_ratio_size= 4, drop_last=drop_last)
         # for name, part, l in zip(["train", "valid", "test"], 

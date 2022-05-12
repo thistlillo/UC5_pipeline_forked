@@ -14,7 +14,7 @@ import pickle
 from posixpath import join
 from tqdm import tqdm
 
-from text.encoding import BaseTextEncoder
+from text.encoding2 import BaseTextEncoder
 import text.cleaning as text_cleaning
 import text.reports as reports
 from text.vocabulary import Vocabulary
@@ -63,8 +63,8 @@ def raw_data_cleansing(df):
     #> drop rows with mesh=="no indexing" and empty auto
     iii = df[reports.k_major_mesh] == "no indexing"
     jjj = df[reports.k_auto_term].str.len() == 0
-    df = df.drop(df[iii&jjj].index)
-    print(f"dropped {nnz(iii&jjj)} rows without any info in tags")
+    #df = df.drop(df[iii|jjj].index)
+    #print(f"dropped {nnz(iii&jjj)} rows without any info in tags")
 
     #> keep only the first term, lowercased
     def clean_terms(terms):
@@ -242,6 +242,7 @@ def image_labels_to_indexes(column, verbose=False):
     normal_cnt = 0
 
     for l in column.apply(lambda x: x.split(reports.list_sep)).to_list():
+        print(l)
         total_terms += len(l)
         for t in l:
             u_labs.add(t.strip())
@@ -253,6 +254,8 @@ def image_labels_to_indexes(column, verbose=False):
 
     i2l = { i : l for i, l in enumerate(sorted(u_labs)) }
     l2i = { l : i for i, l in i2l.items() }
+    for i, l in i2l.items():
+        print(f"label {i}: {l}")
 
     # useless check
     for i in range(len(l2i)):
@@ -265,7 +268,7 @@ def image_labels_to_indexes(column, verbose=False):
 def encode_image_labels(column, verbose):
     lab2i, i2lab = image_labels_to_indexes( column, verbose )
 
-    enc_col = column.apply( lambda x: reports.list_sep.join([ str(lab2i[y]) for y in x.split(reports.list_sep)] ) )
+    enc_col = column.apply( lambda x: reports.list_sep.join([ str(lab2i[y]) for y in sorted(list(set(x.split(reports.list_sep))))] ) )
     return enc_col, lab2i, i2lab
 
 # --------------------------------------------------
@@ -315,7 +318,8 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
         min_term_freq_auto = 100,
         vocab_size = 1000,
         min_token_freq = 2,
-        force_rebuild=False): # path for the output file):
+        force_rebuild=False,
+        remove_normal_class=False): # path for the output file):
     
     if force_rebuild or not os.path.exists(join(out_fld, "reports_raw.tsv")):
         df = build_raw_tsv(txt_fld, out_fld)
@@ -360,7 +364,23 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
     #<
 
     #>
+    if remove_normal_class:
+        normal_iii = df[reports.k_major_mesh] == "normal"
+        print("WARNING: removing normal class")
+        print("number of normal reports:", nnz(normal_iii))
+        print("shape of current dataset:", df.shape)
+        df = df[~normal_iii]
+        print("\t new shape:", df.shape)
 
+        print("WARNING: removing technical quality of image unsatisfactory")
+        iii = df[reports.k_major_mesh].apply( lambda x: "technical quality of image unsatisfactory" in x.split(reports.list_sep) )
+        print("number of dropped reports:", nnz(iii))
+        df = df[~iii]
+        print("\t new shape:", df.shape)
+    #<
+    
+
+    #>
     print("encoding image labels...")
     print("- auto_term labels:")
     df["auto_labels"], auto_lab2i, auto_i2lab = encode_image_labels(df["auto_term"], verbose=True )
@@ -372,7 +392,8 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
     json.dump(mesh_i2lab, open(join(out_fld, "mesh_index2lab.json"), "w") )
     #<
 
-    ib_ds = image_based_ds(df, img_fld, enc_text_col=enc_text_col)
+    df.set_index("filename", inplace=True)
+    ib_ds = image_based_ds(df, img_fld, enc_text_col=enc_text_col).set_index("filename")
 
     #>
     out_fn = out_fn or "reports.tsv"

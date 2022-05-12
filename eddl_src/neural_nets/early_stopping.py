@@ -2,12 +2,12 @@ import numpy as np
 
 eps = 1e-8
 class PatienceEarlyStopping:
-    def __init__(self):
+    def __init__(self, patience=10, min_epochs=20):
         self.v = []  # values of the watched metric
         self.stop = False
         self.iter_stop = 0
-        self.min_epochs = 100
-        self.k = 10
+        self.min_epochs = min_epochs
+        self.k = patience
 
     def append(self, value):
         self.v.append(value)
