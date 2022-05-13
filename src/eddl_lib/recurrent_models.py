@@ -159,3 +159,59 @@ def generate_text(rnn, n_tokens, visual_batch=None, semantic_batch=None, dev=Fal
     #< for n_tokens
     return generated_tokens
 #<
+
+def generate_text_predict_next(rnn, target_text, n_tokens, visual_batch=None, semantic_batch=None, dev=False):
+    assert (visual_batch is not None) and (semantic_batch is not None)
+
+    bs = visual_batch.shape[0]
+    lstm = eddl.getLayer(rnn, "lstm_cell")
+    lstm_size = lstm.output.shape[1]
+    last_layer = eddl.getLayer(rnn, "rnn_out")
+    voc_size = last_layer.output.shape[1]
+    
+    # return value
+    generated_tokens = np.zeros( (bs, n_tokens), dtype=int)
+
+    # lstm cell states
+    state_t = Tensor.zeros([bs, 2, lstm_size])
+    
+    # token: input to lstm cell
+    token = Tensor.zeros([bs, voc_size])
+    
+    for j in range(0, n_tokens):
+        if dev:
+            print(f" *** token {j}/{n_tokens} ***")
+            print(f"cnn_visual: {visual_batch.shape}")
+            print(f"cnn_semant: {semantic_batch.shape}")
+            print(f"token: {token.shape}")
+            print(f"state_t: {state_t.shape}")
+
+        # forward: token and state_t update after the forward step
+        eddl.forward(rnn, [visual_batch, semantic_batch, token, state_t])     
+        states = eddl.getStates(lstm)
+
+        # save the state for the next token: it must be copied into a Tensor (state_t)
+        for si in range(len(states)):
+            states[si].reshape_([ states[si].shape[0], 1, states[si].shape[1] ])
+            state_t.set_select( [":", str(si), ":"] , states[si] )
+        
+        out_soft = eddl.getOutput(last_layer)
+        # pass control to numpy for argmax
+        wis = np.argmax(out_soft, axis=-1)
+        # print(wis)
+        # if dev:
+        #     print(wis.shape)
+        #     print(f"next_token {wis[0]}")
+        generated_tokens[:, j] = wis
+        
+        #> next input token to the lstm
+        word_index = Tensor.fromarray(wis.astype(float))
+        word_index.reshape_([bs, 1])  # add dimension for one-hot encoding
+        token = Tensor.onehot(word_index, voc_size)
+        
+        # print(token.shape)
+        token.reshape_([bs, voc_size])  # remove singleton dim
+        #<
+    #< for n_tokens
+    return generated_tokens
+#<

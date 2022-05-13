@@ -29,6 +29,6 @@ def compute_bleu_edll(predictions, text):
     for i in range(predictions.shape[0]):
         pred = build_str(predictions[i, :])
         txt = build_str(text[i, :])
-        bleu += sentence_bleu([txt], pred)
+        bleu += sentence_bleu([txt], pred, weights=(0.5, 0.5, 0, 0))
     return bleu / predictions.shape[0]
 #< compute_bleu_edll

@@ -12,7 +12,7 @@ import pyecvl.ecvl as ecvl
 from tqdm import tqdm
 
 from eddl_lib.eddl_augmentations import test_augs
-from eddl_lib.recurrent_models import nonrecurrent_lstm_model, generate_text
+from eddl_lib.recurrent_models import nonrecurrent_lstm_model, generate_text_predict_next
 from text.encoding import SimpleCollator2
 from text.metrics import compute_bleu_edll
 from text.reports import csv_sep, list_sep
@@ -45,7 +45,7 @@ def apply_thresholds(values, thresholds):
     return np.where(values > thresholds, 1, 0)
 
 # simplified version of EddlRecurrentModule.predict(.)
-def annotate(img, cnn, rnn, n_tokens, dev=False, thresholds=None):
+def annotate(img, cnn, rnn, target_text, n_tokens, dev=False, thresholds=None):
     if dev:
         print(f"annotating an ECVL image {img.Width()} x {img.Height()} x {img.Channels()} with {n_tokens} words")
     # - 
@@ -61,7 +61,7 @@ def annotate(img, cnn, rnn, n_tokens, dev=False, thresholds=None):
         cnn_semantic = Tensor.fromarray(ths)
     cnn_visual = eddl.getOutput(cnn_top)
     # - 
-    text =  generate_text(rnn, n_tokens, visual_batch=cnn_visual, semantic_batch=cnn_semantic, dev=False)
+    text =  generate_text_predict_next(rnn, target_text, n_tokens, visual_batch=cnn_visual, semantic_batch=cnn_semantic, dev=False)
     return text
 #<
 
@@ -118,20 +118,21 @@ def main(out_fn,
     
     augs = test_augs(img_size)
     #>
-    print("> step 1: generate text for a single image")
-    path = args.img_file or join(args.img_fld, "CXR1521_IM-0337-1001.png")
-    img = load_image(path, augs)
-    text = annotate(img, cnn, rnn, args.n_tokens, dev=args.dev)
-    print(f"< step 1: generated text: {text}")
+    # print("> step 1: generate text for a single image")
+    # path = args.img_file or join(args.img_fld, "CXR1521_IM-0337-1001.png")
+    # img = load_image(path, augs)
+    # text = annotate(img, cnn, rnn, args.n_tokens, dev=args.dev)
+    # print(f"< step 1: generated text: {text}")
+    # print("")
     #<
     
-    print("")
     
     #> read the tsv and annotate all of the images
     collator = SimpleCollator2()
 
     print(f"> step 2: processing {tsv_file}")
     tsv = pd.read_csv(tsv_file, sep=csv_sep)
+    print(tsv.head().T)
     print(f" - shape: {tsv.shape}")
     print(f" - columns: {', '.join(tsv.columns)}")
     # reading partitions, assume they exist
@@ -173,7 +174,8 @@ def main(out_fn,
     tsv["gen_wis"] = ""
     tsv["partition"] = ""
     tsv["bleu"] = np.nan
-    
+    tsv2 = tsv.set_index("filename")
+
 
     for p, l in zip(partitions, id_lists):
         print(f"processing {p}, len: {len(l)}")
@@ -185,7 +187,9 @@ def main(out_fn,
 
         for fn in tqdm(filenames, disable=args.dev):
             img = load_image(join(args.img_fld, fn), augs=augs)
-            gen_wis = annotate(img, cnn, rnn, args.n_tokens, dev=args.dev, thresholds=thresholds)[0]
+            target_text = tsv2.loc[fn, "enc_text_eddl"]
+            
+            gen_wis = annotate(img, cnn, rnn, target_text, args.n_tokens, dev=args.dev, thresholds=thresholds)[0]
             gen_wis_str = " ".join([str(n) for n in gen_wis])
             decoded = vocab.decode_sentence(gen_wis_str)
             gen_word_idxs.append(gen_wis_str)
@@ -199,6 +203,7 @@ def main(out_fn,
             lambda x: compute_bleu_edll(x["gen_wis"], x["enc_text_eddl"]), axis=1)
         print(f"mean BLEU on {p}: {tsv.loc[indexes, 'bleu'].mean():.3f}")
     
+    assert False, "assert False in text_generation_phi_v3.main"
     tsv.to_csv(args.out_fn, sep=csv_sep)
     print(f"saved: {args.out_fn}")
     print("done.")
