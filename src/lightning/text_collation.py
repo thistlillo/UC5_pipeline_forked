@@ -1,5 +1,5 @@
 import numpy as np
-from utils.vocabulary import Vocabulary
+from lightning.vocabulary_light import Vocabulary
 
 def collate_fn_one_s(enc_text, n_sents=1, max_tokens=12, verbose=False):
     assert type(enc_text) is list, f"expected type 'list', received {type(enc_text)}"
@@ -31,9 +31,12 @@ def collate_fn_one_s(enc_text, n_sents=1, max_tokens=12, verbose=False):
     
 def collate_fn_n_sents(enc_text, n_sents, max_tokens, verbose=False):
     res = []
+    # NOTICE: pay attention to encoded sentences: last sentence is always empty (continue below)
     for i, enc_sent in enumerate(enc_text):
         if i == n_sents:
             break
+        elif len(enc_sent) == 0:
+            continue
         v = collate_fn_one_s(enc_sent, n_sents=1, max_tokens=max_tokens, verbose=verbose)
         res.append(v)
 

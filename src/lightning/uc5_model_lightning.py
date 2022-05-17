@@ -24,7 +24,7 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.loggers import NeptuneLogger
 
 import pt.uc5_base_models as base_modules
-from text.vocabulary import Vocabulary
+from lightning.vocabulary_light import Vocabulary
 
 # util function for printing shapes - for debugging
 def print_shapes(d, header=None):
@@ -48,14 +48,14 @@ class Uc5Model(LightningModule):
         self.conf = conf
         self.cnn, self.mlc, self.coatt, self.sentence_lstm, self.word_lstm = self._create_modules()
         self.tag_loss, self.stop_loss, self.word_loss = self._configure_losses()
-        self.DEBUG = self.conf["debug"]
+        self.DEBUG = True  # self.conf["debug"]
         self.vocab_size = self.conf["vocab_size"]
 
         if self.vocab_size == 0:
             print(f"vocabulary size not provided, reading vocabulary from {self.conf['exp_fld']}")
-            with open( join(self.conf["exp_fld"], "vocab.pickle"), "rb") as fin:
+            with open( join(self.conf["exp_fld"], "vocab.pkl"), "rb") as fin:
                 self.vocab = pickle.load(fin)
-                self.vocab_size = self.vocab.n_words
+                self.vocab_size = len(self.vocab.word2idx)
 
         self.train_start_t, self.valid_start_t = None, None
 
@@ -142,6 +142,7 @@ class Uc5Model(LightningModule):
         # remember: training_step expects tensors
         # pre allocate tensors
         out_prob_stop = torch.zeros( [images.shape[0], n_sentences, 2], device=self.device )
+        # n_words -1 because it does not contain bos
         out_generated_words = torch.zeros( [images.shape[0], n_sentences, n_words-1, self.vocab_size], device=self.device )
         
         # iterate over sentences: this step aims at learning when to stop
@@ -164,10 +165,10 @@ class Uc5Model(LightningModule):
                 #   at time t+1 the lstm does not receive its input at time t, but the target word
                 gen_text = self.word_lstm.forward(topic, sentences[:, sent_idx, :wi])
                 
-                if sent_idx == 0 and wi ==1:
+                if sent_idx == 0 and wi == 1:
                     out_prob_stop = out_prob_stop.type_as(prob_stop)  # useful when changing precision
                     out_generated_words = out_generated_words.type_as(gen_text)
-                # print("generated text, shape",   gen_text.shape)
+                print("generated text, shape",   gen_text.shape)
                 
                 out_generated_words[:, sent_idx, wi-1, :] = gen_text
                 # >0 => do not consider padding
@@ -189,9 +190,12 @@ class Uc5Model(LightningModule):
         images, labels, sentences, probs = batch
         #region
         args = locals()
+        print(self.DEBUG)
+
         if self.DEBUG:
             print_shapes(args, header="COMPUTE LOSS")
 
+        print(labels)
         # region: compute tag loss
         tag_loss = self.tag_loss(tags, labels).sum()
         
@@ -272,8 +276,8 @@ class Uc5Model(LightningModule):
         bs = images.shape[0]
         vocab = self.vocab  # this could be None!
         vs = self.vocab_size
-        bos = Vocabulary.BOS_I
-        eos = Vocabulary.EOS_I
+        bos = Vocabulary.BOS
+        eos = Vocabulary.EOS
 
         conv_feat, avg_feat, cnn_est = self.cnn.forward(images)
         tags, visual_embs = self.mlc.forward(avg_feat)
@@ -335,7 +339,7 @@ class Uc5Model(LightningModule):
                 for k in range(seqs_of_tokens.shape[1]):
                     token = seqs_of_tokens[j,k]  # sentence j, token k
                     text.append(str(token))
-                    if token == Vocabulary.EOS_I:
+                    if token == Vocabulary.EOS:
                         break
             return text
         bleu = 0

@@ -10,75 +10,97 @@ import pickle
 from posixpath import join
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-import pickle
-import yaml
 
-# from utils.data_partitioning import DataPartitioner
-#import text.reports as reports
-# from text.encoding import SimpleCollator, StandardCollator
-# from pt.uc5_dataset import Uc5ImgDataset
-# import utils.misc as mu
+from utils.data_partitioning import DataPartitioner
+import text.reports as reports
+from text.encoding import SimpleCollator, StandardCollator
+from pt.uc5_dataset import Uc5ImgDataset
+import utils.misc as mu
 
-from lightning.dataset import MultiModalDataset, ImageTransforms
-from lightning.text_collation import collate_fn_n_sents
 class Uc5DataModule(LightningDataModule):
 
     def __init__(self, conf):
         super().__init__()
         self.conf = conf
+        
         self.l1normalization = True
+
+        self.in_tsv = conf["in_tsv"]
         self.img_fld = conf["img_fld"]
         self.exp_fld = conf["exp_fld"]
         self.img_size = conf["img_size"]
-        self.img_transforms = ImageTransforms(dataset="chest-iu")
-        with open( join(self.exp_fld, "img_dataset.pkl"), "rb") as fin:
-            self.img_ds = pickle.load(fin)
-        with open( join(self.exp_fld, "img_text_dataset.pkl"), "rb") as fin:
-            self.text_ds = pickle.load(fin)
+
+        self.tsv = pd.read_csv(self.in_tsv, sep=reports.csv_sep, na_filter=False)
+        self.tsv.set_index("filename", inplace=True, drop=False)
+        # NOTICE: set_index to filename, with drop=True
         
         self.train_dl, self.val_dl, self.test_dl = None, None, None   # cache of the dataloaders, not used - code commented
-        self.train_ids, self.valid_ids, self.test_ids = self._load_data_split()
+        self.train_ids, self.val_ids, self.test_ids = self._set_partitions()
                 
         # section: load files
         #   read all the files here to reduce memory footprint
-        with open(join(self.exp_fld, "label2idx.yaml"), "r") as fin:
-            self.label2index = yaml.safe_load(fin)
+        with open(join(self.exp_fld, "lab2index.json"), "r") as fin:
+            self.label2index = json.load(fin)
         self.n_classes = len(self.label2index)
 
-        with open(join(self.exp_fld, "idx2label.yaml"), "r") as fin:
-            self.index2label = yaml.safe_load(fin)
+        with open(join(self.exp_fld, "index2lab.json"), "r") as fin:
+            self.index2label = json.load(fin)
         
+        # add this column, that will be read and served by the uc5_dataset receiving the view of this tsv
+        print(f"encoding labels, l1normalization set to: {self.l1normalization}")
+        self.tsv["one_hot_labels"] = self.tsv["labels"].apply(
+            lambda x: mu.encode_labels_one_hot(
+                [int(l) for l in x.split(reports.list_sep)], 
+                n_classes = self.n_classes,
+                l1normalization=self.l1normalization)
+                )
     #< init
     
+    #> section: partitions
+    def _set_partitions(self):
+        if self.conf["load_data_split"]:
+            return self._load_data_split()
+        else:
+            return self._create_partitions()
+        
     def _load_data_split(self):
-        split = pd.read_pickle(join(self.exp_fld, "split_0.pkl"))
-        train_ids = split[split.split == "train"].filename
-        valid_ids = split[split.split == "valid"].filename
-        test_ids = split[split.split == "test"].filename
+        with open(join(self.exp_fld, "train_ids.txt"), "r", encoding="utf-8") as fin:
+            train_ids = [line.strip() for line in fin.readlines()]
+        with open(join(self.exp_fld, "valid_ids.txt"), "r", encoding="utf-8") as fin:
+            valid_ids = [line.strip() for line in fin.readlines()]
+        with open(join(self.exp_fld, "test_ids.txt"), "r", encoding="utf-8") as fin:
+            test_ids = [line.strip() for line in fin.readlines()]
         print(f"data split read from disk. |train|={len(train_ids)}, |valid|={len(valid_ids)}, |test|={len(test_ids)}")
         return train_ids, valid_ids, test_ids
 
-    
+    def _create_partitions(self):
+        c = {}
+        c["in_tsv"] = self.in_tsv
+        c["exp_fld"] = self.exp_fld
+        c["train_p"] = self.conf["train_p"]
+        c["valid_p"] = self.conf["valid_p"]
+        c["shuffle_seed"] = self.conf["shuffle_seed"]
+        c["term_column"] = self.conf["term_column"]
+        c["verbose"] = self.conf["verbose"]
+        partitioner = DataPartitioner(c, self.tsv)   
+        return partitioner.partition()
+    #< section: partitions
 
     def _filter_tsv_for_split(self, ids):  # train, val or test ids
         subdf = self.tsv[self.tsv.filename.isin(ids)]  # .reset_index(drop=True)
         return subdf        
     #< section: uc5 datasets
 
-
-    # (self, img_dataset: pd.DataFrame, text_dataset: pd.DataFrame, 
-    #         img_fld: str, img_transforms=None, n_classes=None, img_size=224,
-    #         n_sentences=1, n_tokens=12, collate_fn=None, verbose=False, l1normalization=True):
-    #     super().__init__()
-
     #> section: pt-lightning methods
     def train_dataloader(self):
         if self.conf["verbose"]:
             print("returning train_dataloader")
-        
-        train_dataset = MultiModalDataset(img_dataset=self.img_ds.loc[self.train_ids], 
-                text_dataset=self.text_ds, img_fld=self.img_fld, img_transforms=self.img_transforms.train_transforms, n_sentences=3, n_tokens=12, collate_fn=collate_fn_n_sents)
 
+        train_dataset = Uc5ImgDataset(
+            tsv=self._filter_tsv_for_split(self.train_ids),
+            n_classes=self.n_classes,
+            conf=self.conf,
+            version=None)
         print(f"train dataloader using {self.conf['loader_threads']} loader threads")
         return DataLoader(train_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"])
     #<
@@ -87,8 +109,11 @@ class Uc5DataModule(LightningDataModule):
         if self.conf["verbose"]:
             print("returning val_dataloader")
         
-        val_dataset = MultiModalDataset(img_dataset=self.img_ds.loc[self.valid_ids], 
-                text_dataset=self.text_ds, img_fld=self.img_fld, img_transforms=self.img_transforms.test_transforms, n_sentences=3, n_tokens=12, collate_fn=collate_fn_n_sents)
+        val_dataset = Uc5ImgDataset(
+            tsv=self._filter_tsv_for_split(self.val_ids),
+            n_classes=self.n_classes,
+            conf=self.conf,
+            version=None)
         print(f"val dataloader using {self.conf['loader_threads']} loader threads")
         return DataLoader(val_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"]) # , num_workers=self.conf["loader_threads"]
     #<
@@ -97,8 +122,11 @@ class Uc5DataModule(LightningDataModule):
         if self.conf["verbose"]:
             print("returning test_dataloader")
                 
-        test_dataset = MultiModalDataset(img_dataset=self.img_ds.loc[self.test_ids], 
-                text_dataset=self.text_ds, img_fld=self.img_fld, img_transforms=self.img_transforms.test_transforms, n_sentences=3, n_tokens=12, collate_fn=collate_fn_n_sents)
+        test_dataset = Uc5ImgDataset(
+            tsv=self._filter_tsv_for_split(self.test_ids),
+            n_classes=self.n_classes,
+            conf=self.conf,
+            version=None)
         print(f"test dataloader using {self.conf['loader_threads']} loader threads")
         return DataLoader(test_dataset, batch_size=self.conf["batch_size"], num_workers=self.conf["loader_threads"]) # , num_workers=self.conf["loader_threads"]
     #<    

@@ -13,9 +13,10 @@ THIS_MAKEFILE = $(lastword $(MAKEFILE_LIST))
 $(warning running makefile ${THIS_MAKEFILE})
 
 PYTHON = python3
-EXP_FLD = /opt/uc5/results/eddl_exp/wp6
+# EXP_FLD = /opt/uc5/results/eddl_exp/wp6
+EXP_FLD = /opt/uc5/results/eddl_exp/wp6last
 IMAGE_FLD = /mnt/datasets/uc5/std-dataset/image
-TERM_COLUMN = mesh_term
+TERM_COLUMN = auto_term
 RANDOM_SEED = 100
 SHUFFLE_SEED = 2000
 
@@ -39,7 +40,6 @@ $(EXP_FLD)/annotated_phi.tsv: $(CNN_MODEL_OUT_FN) $(REC_MODEL_OUT_FN) D01_gen_te
 		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
 		--tsv_file=$(IMG_BASED_DS_ENC) --img_size=$(CNN_IMAGE_SIZE) --dev=$(DEV_MODE_D)
 
-CNN_MODEL_OUT_FN = $(EXP_FLD)/cnn_84val_neptune179.onnx
 
 $(EXP_FLD)/recurrent2.onnx:  C01_2_rec_mod_edll.py
 	$(PYTHON)  C01_2_rec_mod_edll.py train --out_fn=$@ \
@@ -56,7 +56,25 @@ $(EXP_FLD)/recurrent2.onnx:  C01_2_rec_mod_edll.py
 		--remote_log=True \
 		--verbose=True --nodebug --nodev
 
-train_rec : $(EXP_FLD)/recurrent2.onnx
+CNN_MODEL_OUT_FN = $(EXP_FLD)/run_0/best_cnn.onnx 
+# cnn_84val_neptune179.onnx
+
+$(EXP_FLD)/recurrent_wp6.onnx:  C01_2_rec_mod_edll.py
+	$(PYTHON)  C01_2_rec_mod_edll.py train --out_fn=$@ \
+		--preload_images=False --preproc_images=$(PREPROC_IMAGES) \
+		--cnn_file=$(CNN_MODEL_OUT_FN) \
+		--in_tsv=$(EXP_FLD)/img_reports.tsv --exp_fld=$(EXP_FLD) \
+		--img_fld=$(IMAGE_FLD) --term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) \
+		--seed=$(RANDOM_SEED) --shuffle_seed=$(SHUFFLE_SEED) \
+		--n_epochs=5000 --batch_size=128 --last_batch=drop \
+		--train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
+		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
+		--eddl_cs=$(EDDL_CS) --eddl_cs_mem=$(EDDL_CS_MEM) --gpu_id=$(GPU_ID_RNN) \
+		--check_val_every=2\
+		--remote_log=True \
+		--verbose=True --nodebug --nodev
+
+train_rec_wp6 : $(EXP_FLD)/recurrent_wp6.onnx
 
 test_generation:
 	$(PYTHON) D01_gen_text_phi.py --out_fn=$@ --exp_fld=$(EXP_FLD) --img_fld=../data/image \

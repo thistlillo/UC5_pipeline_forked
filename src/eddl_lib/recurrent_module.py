@@ -72,8 +72,8 @@ class EddlRecurrentModule:
         filename = join( self.conf["exp_fld"], "dataset.yml")
         # augs here
         ecvl.AugmentationParam.SetSeed(self.conf["seed"])
-        mean = [0.1534339, 0.19879097, 0.15122881]
-        std = [0.26099038, 0.30683932, 0.2560843]
+        mean = [0.48197903, 0.48197903, 0.48197903]
+        std = [0.26261734, 0.26261734, 0.26261734]
         train_augs = ecvl.SequentialAugmentationContainer([
             ecvl.AugResizeDim([300, 300]),
             ecvl.AugRotate([-5,5]),

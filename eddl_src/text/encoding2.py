@@ -40,8 +40,8 @@ class BaseTextEncoder:
         vocab = self.vocab
         out = []
         for sentence in text.split(".")[:-1]:  # last split is an empty string
-            # s = [Vocabulary.BOS_I]
-            s = []
+            s = [Vocabulary.BOS_I]
+            # s = []
             for word in word_tokenize(sentence):
                 if word in vocab:
                     s.append(vocab.get_index(word))

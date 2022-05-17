@@ -14,7 +14,7 @@ BASE_OUT_FLD = ../experiments_eddl
 
 # EXP_NAME = without_normal_finetune
 EXP_NAME = with_normal_finetune
-EXP_FLD  =$(BASE_OUT_FLD)/$(EXP_NAME)_$(SEED)
+EXP_FLD  =$(BASE_OUT_FLD)/wp6last
 $(warning output folder for the experiment: ${EXP_FLD})
 
 # TODO
@@ -45,8 +45,29 @@ train_cnn:
 	$(PYTHON) 01_train.py train_cnn --exp_fld=$(EXP_FLD) \
 		--n_epochs=1000 --batch_size=[128] --learning_rate=[0.0001] \
 		--seed=$(SEED) --shuffle_seed=$(SHUFFLE_SEED) --verbose=True --dev=False \
-		--gpu_id=[1,1,0,0] --description="without normal" \
+		--gpu_id=[1,1,0,0] --description="wit normal" \
 		--remote_log=True --fine_tune=True
+
+
+# USE MAKEFILE IN PARENT FOLDER ..._phi_tests.mk
+$(EXP_FLD)/recurrent.onnx:  C01_2_rec_mod_edll.py
+	$(PYTHON)  C01_2_rec_mod_edll.py train --out_fn=$@ \
+		--preload_images=False --preproc_images=$(PREPROC_IMAGES) \
+		--cnn_file=$(EXP_FLD)/run_0/best_cnn.onnx \
+		--in_tsv=$(EXP_FLD)/img_reports.tsv --exp_fld=$(EXP_FLD) \
+		--img_fld=$(IMAGE_FLD) --term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) \
+		--seed=$(RANDOM_SEED) --shuffle_seed=$(SHUFFLE_SEED) \
+		--n_epochs=5000 --batch_size=$(BATCH_SIZE) --last_batch=drop \
+		--train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
+		--lstm_size=512 --emb_size=512 --n_tokens=$(MAX_TOKENS) \
+		--eddl_cs=$(EDDL_CS) --eddl_cs_mem=$(EDDL_CS_MEM) --gpu_id=$(GPU_ID_RNN) \
+		--check_val_every=2\
+		--remote_log=True \
+		--verbose=True --nodebug --nodev \
+		--label_col=auto_labels
+
+train_rec : $(EXP_FLD)/recurrent.onnx
+
 
 mean_iu-chest:
 	$(PYTHON) utils/mean_and_variance.py --img_fld=$(IMAGE_FLD) --dataset=iu-chest

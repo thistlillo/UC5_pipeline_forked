@@ -218,10 +218,10 @@ class WordModule(nn.Module):
         self.embeddings, self.lstm, self.linear = self._create_net()
     
     def _create_net(self):
-        with open( join(self.conf["exp_fld"], "vocab.pickle"), "rb") as fin:
+        with open( join(self.conf["exp_fld"], "vocab.pkl"), "rb") as fin:
             vocab = pickle.load(fin)
-        voc_size = vocab.n_words
-        embeddings = nn.Embedding(voc_size, self.conf["word_emb_size"])
+        voc_size = len(vocab.word2idx)
+        embeddings = nn.Embedding(voc_size, self.conf["word_emb_size"], padding_idx=0)
         _init_embs(embeddings.weight, self.conf["init_embs"])
         lstm = nn.LSTM(self.conf["attn_emb_size"], self.conf["lstm_word_h_size"], self.conf["lstm_word_n_layers"], 
                     dropout= self.conf["lstm_word_dropout"] if self.conf["lstm_word_n_layers"] < 1 else 0, batch_first=True)

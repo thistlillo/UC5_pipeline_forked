@@ -40,7 +40,7 @@ def main(in_tsv,
          init_linear = 0.1,       # weights will be initialize with torch.nn.init.uniform_(t, -init_linear, init_linear)
          top_k_tags = 5,          # number of semantics tags used for sentence generation
          # ATTENTION HERE (n_tags)!
-         n_tags = 94,             # number of tags/classes of the images. This number must be manually passed. It depends on the preprocessing steps.
+         # n_tags = 94,             # number of tags/classes of the images. This number must be manually passed. It depends on the preprocessing steps.
          tag_emb_size = 512,      # dimension of tag emebddings. Currently all the embeddings dimension MUST have the same value (512).
          init_embs = 0.5,         # embedding matrixes wille be initialized with torch.nn.init.uniform_(t, -init_embs, init_embs)
          attn_emb_size = 512,     # dimension of attention embeddings. Currently all the embeddings dimension MUST have the same value (512).

@@ -372,11 +372,17 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
         df = df[~normal_iii]
         print("\t new shape:", df.shape)
 
-        print("WARNING: removing technical quality of image unsatisfactory")
-        iii = df[reports.k_major_mesh].apply( lambda x: "technical quality of image unsatisfactory" in x.split(reports.list_sep) )
-        print("number of dropped reports:", nnz(iii))
-        df = df[~iii]
-        print("\t new shape:", df.shape)
+    print("WARNING: removing technical quality of image unsatisfactory")
+    iii = df[reports.k_major_mesh].apply( lambda x: "technical quality of image unsatisfactory" in x.split(reports.list_sep) )
+    print("number of dropped reports:", nnz(iii))
+    df = df[~iii]
+    print("\t new shape:", df.shape)
+
+    print("WARNING: removing no indexing")
+    iii = df[reports.k_major_mesh].apply( lambda x: "no indexing" in x.split(reports.list_sep) )
+    print("number of dropped reports:", nnz(iii))
+    df = df[~iii]
+    print("\t new shape:", df.shape)
     #<
     
 
@@ -384,6 +390,9 @@ def main(txt_fld = "../data/text",  # folder containing the xml reports
     print("encoding image labels...")
     print("- auto_term labels:")
     df["auto_labels"], auto_lab2i, auto_i2lab = encode_image_labels(df["auto_term"], verbose=True )
+    for i,l in auto_i2lab.items():
+        print(f"auto terms {i} -> {l}")
+
     print("- major_mesh labels:")
     df["mesh_labels"], mesh_lab2i, mesh_i2lab = encode_image_labels(df["major_mesh"], verbose=True )
     json.dump(auto_lab2i, open(join(out_fld, "auto_lab2index.json"), "w") )

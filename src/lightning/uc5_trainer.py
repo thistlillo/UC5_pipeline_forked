@@ -4,6 +4,7 @@
 #
 import os
 from posixpath import join
+import yaml
 
 from pytorch_lightning.loggers import NeptuneLogger
 import pytorch_lightning as pl
@@ -16,6 +17,10 @@ from lightning.uc5_model_lightning import Uc5Model
 class Uc5Trainer:
     def __init__(self, conf):
         self.conf = conf
+        self.exp_fld = self.conf["exp_fld"]
+        with open(join(self.exp_fld, "idx2label.yaml"), "r") as fin:
+            self.idx2label = yaml.load(fin, Loader=yaml.FullLoader)
+        self.conf["n_tags"] = len(self.idx2label)
         self.logger = self._configure_logger()
     #<
 
@@ -29,7 +34,7 @@ class Uc5Trainer:
             mode = "offline"
 
         neptune_logger = NeptuneLogger(
-            project = "thistlillo/UC5-DeepHealth-PT_Lightning",
+            project = "thistlillo/UC5-Lightning",
             name = "base_version",
             mode = mode
         )
@@ -46,9 +51,9 @@ class Uc5Trainer:
         limit_val_batches = 1.0
         limit_test_batches = 1.0  # limit_train_batches
         if self.conf["dev"]:
-            limit_train_batches = 0.05
-            limit_val_batches = 0.05
-            limit_test_batches = 0.05
+            limit_train_batches = 0.2
+            limit_val_batches = 0.2
+            limit_test_batches = 0.2
             self.conf["n_epochs"] = 1
             check_val_every_n_epoch = 1
         
@@ -68,7 +73,7 @@ class Uc5Trainer:
 
         #> device
         params = {"accelerator": self.conf["accelerator"],
-                "gpus": self.conf["gpus"],
+                "devices": self.conf["gpus"],
         }
         #< 
 
@@ -92,7 +97,6 @@ class Uc5Trainer:
             check_val_every_n_epoch=check_val_every_n_epoch,
         )
         #<
-
         #> training
         print("training starting - calling fit(.)")
         

@@ -77,8 +77,9 @@ def build_ecvl_ds(exp_fld=".", out_fn="cnn_ds.yml", train_p=0.7, valid_p=0.1, sh
         with open(join(exp_fld, fn), "w") as fout:
             fout.write("\n".join([str(id) for id in ids]))
     #>
-  
-    ecvl_ds = ecvl_yaml("without_normal", "ds without normal class", filenames, labels, train_indexes.tolist(), valid_indexes.tolist(), test_indexes.tolist())
+    
+    descr = "with normal" if use_normal_class else "without_normal"
+    ecvl_ds = ecvl_yaml(descr, descr, filenames, labels, train_indexes.tolist(), valid_indexes.tolist(), test_indexes.tolist())
     with open(out_fn, "w") as fout:
         yaml.dump(ecvl_ds, fout)
     #<

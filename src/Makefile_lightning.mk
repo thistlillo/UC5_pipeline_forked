@@ -178,8 +178,8 @@ MAX_SENTENCES = 5
 
 VERBOSITY_C = False
 DEBUG_C = False
-DEV_MODE_C = True
-GPU_ID = 2,3
+DEV_MODE_C = False
+GPU_ID = 3
 REMOTE_LOG=True
 
 SPLIT_WITNESS = $(EXP_FLD)/.split_witness
@@ -196,7 +196,7 @@ split_data: $(SPLIT_WITNESS)
 
 MODEL_OUT_FN = $(EXP_FLD)/model_pl.pt
 
-$(MODEL_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
+$(MODEL_OUT_FN): C01_train_lightning.py
 	$(PYTHON) C01_train_lightning.py --out_fn=$@ \
 	--only_images=False --load_data_split=True \
 	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
@@ -206,7 +206,7 @@ $(MODEL_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
 	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
 	--single_channel_cnn=False \
 	--accelerator=gpu --gpus=[${GPU_ID}]  \
-	--loader_threads=16 \
+	--loader_threads=1 \
 	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
 
 train : $(MODEL_OUT_FN)
