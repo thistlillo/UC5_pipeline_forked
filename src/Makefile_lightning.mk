@@ -31,7 +31,9 @@ TEXT_FLD = $(BASE_DS_FLD)/text
 REPORTS = reports
 
 BASE_OUT_FLD = ../experiments_$(LIBRARY)
-EXP_FLD = $(BASE_OUT_FLD)/$(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
+
+# EXP FLD STRING: $(MODEL)_exp-$(EXP_NAME)_$(RANDOM_SEED)_$(SHUFFLE_SEED)
+EXP_FLD = $(BASE_OUT_FLD)/wp6last_lt
 $(shell mkdir -p $(EXP_FLD))
 
 TSV_FLD = $(BASE_OUT_FLD)/tsv_$(LIBRARY)
@@ -177,7 +179,7 @@ MAX_SENTENCES = 5
 VERBOSITY_C = False
 DEBUG_C = False
 DEV_MODE_C = True
-GPU_ID = 1
+GPU_ID = 2,3
 REMOTE_LOG=True
 
 SPLIT_WITNESS = $(EXP_FLD)/.split_witness
@@ -199,12 +201,12 @@ $(MODEL_OUT_FN): $(SPLIT_WITNESS) C01_train_lightning.py
 	--only_images=False --load_data_split=True \
 	--in_tsv=$(IMG_BASED_DS_ENC) --exp_fld=$(EXP_FLD)  --img_fld=$(IMAGE_FLD) \
 	--term_column=$(TERM_COLUMN) --text_column=$(TEXT_COL) --seed=$(RANDOM_SEED) \
-	--shuffle_seed=$(SHUFFLE_SEED) --n_epochs=$(N_EPOCHS) --batch_size=10 \
+	--shuffle_seed=$(SHUFFLE_SEED) --n_epochs=$(N_EPOCHS) --batch_size=64 \
 	--last_batch=$(LAST_BATCH) --train_p=$(TRAIN_PERCENTAGE) --valid_p=$(VALIDATION_PERCENTAGE) \
 	--lstm_size=$(EMB_SIZE) --emb_size=$(EMB_SIZE) --text_column=$(TEXT_COL) --n_tokens=$(MAX_TOKENS) \
-	--single_channel_cnn=True \
+	--single_channel_cnn=False \
 	--accelerator=gpu --gpus=[${GPU_ID}]  \
-	--loader_threads=1 \
+	--loader_threads=16 \
 	--verbose=$(VERBOSITY_C) --debug=$(DEBUG_C) --dev=$(DEV_MODE_C) --remote_log=$(REMOTE_LOG)
 
 train : $(MODEL_OUT_FN)

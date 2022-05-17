@@ -47,6 +47,7 @@ class Uc5DataModule(LightningDataModule):
             self.index2label = json.load(fin)
         
         # add this column, that will be read and served by the uc5_dataset receiving the view of this tsv
+        print(f"encoding labels, l1normalization set to: {self.l1normalization}")
         self.tsv["one_hot_labels"] = self.tsv["labels"].apply(
             lambda x: mu.encode_labels_one_hot(
                 [int(l) for l in x.split(reports.list_sep)], 

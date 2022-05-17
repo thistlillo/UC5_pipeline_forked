@@ -75,7 +75,7 @@ test_generation_2.tsv:
 
 test_generation_3:
 	$(PYTHON) D01_gen_text_phi_3.py --out_fn=$@ --exp_fld=$(GEN_FLD) --img_fld=../data/image \
-		-cnn_model=$(GEN_FLD)/cnn_84val_neptune179.onnx --rnn_model=$(GEN_FLD)/recurrent_best_train.bin \
+		-cnn_model=$(GEN_FLD)/cnn_84val_neptune179.onnx --rnn_model=$(GEN_FLD)/recurrent_best_valid.bin \
 		--lstm_size=512 --emb_size=512 --n_tokens=12 \
 		--tsv_file=$(GEN_FLD)/img_reports_phi2_enc.tsv --img_size=224 --nodev
 
