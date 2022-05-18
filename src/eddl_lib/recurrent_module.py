@@ -109,7 +109,7 @@ class EddlRecurrentModule:
     def load_thresholds(self):
         fn = join(self.conf["exp_fld"], "thresholds_trva.tsv")
         df = pd.read_csv(fn, sep="\t")
-        thresholds = df.youden_t.to_numpy()
+        thresholds = df.auc_t.to_numpy()
         print(f"thresholds read: {thresholds.shape}")
         return thresholds
 
@@ -265,11 +265,12 @@ class EddlRecurrentModule:
                 #    print(sample.location_)
                 
                 # unfortunately there are two versions of img_reports.tsv with image names or full paths
-                image_ids = [os.path.basename(sample.location_[0]) for sample in I]
-                # image_ids = [sample.location_[0] for sample in I]
-                # for i_, x_ in enumerate(image_ids):
-                #     print(f"{i_}: >{x_}<")
-                #     print(f"{i_}: >{os.path.basename(x_)}<")
+                # image_ids = [os.path.basename(sample.location_[0]) for sample in I]
+                image_ids = [sample.location_[0] for sample in I]
+                #for i_, x_ in enumerate(image_ids):
+                #    print(f"{i_}: >{x_}<")
+                #    print(f"{i_}: >{os.path.basename(x_)}<")
+                
                 texts = self.img_ds.loc[image_ids, "collated"]
                 
                 texts = np.array(texts.tolist())
@@ -367,8 +368,8 @@ class EddlRecurrentModule:
             # images, _, texts = ds[bi]
             I, X, Y = dl.GetBatch()
             # X = Tensor.fromarray(images)
-            image_ids = [os.path.basename(sample.location_[0]) for sample in I]
-            # image_ids = [sample.location_[0] for sample in I]
+            # image_ids = [os.path.basename(sample.location_[0]) for sample in I]
+            image_ids = [sample.location_[0] for sample in I]
             texts = self.img_ds.loc[image_ids, "collated"]
             texts = np.array(texts.tolist())
 
@@ -495,8 +496,8 @@ class EddlRecurrentModule:
         dl.Start()
         for i in range(n_test_batches):
             I, X, Y = dl.GetBatch()
-            image_ids = [os.path.basename(sample.location_[0]) for sample in I]
-            # image_ids = [sample.location_[0] for sample in I]
+            # image_ids = [os.path.basename(sample.location_[0]) for sample in I]
+            image_ids = [sample.location_[0] for sample in I]
             texts = self.img_ds.loc[image_ids, "collated"]
             
             texts = np.array(texts.tolist())

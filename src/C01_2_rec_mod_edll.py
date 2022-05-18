@@ -39,7 +39,7 @@ def train(in_tsv,
          debug = False,
          dev = False,
          remote_log = False,
-         label_col = "auto_term"):
+         label_col = "auto_labels"):
     
     config=locals()
     rec_mod = EddlRecurrentModule(config)

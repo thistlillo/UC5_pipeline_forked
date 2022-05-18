@@ -77,11 +77,14 @@ class Uc5Dataset:
         
         print(f"input dataset read. index: {self.tsv.index.name}")
 
-        with open(join(self.exp_fld, "lab2index.json"), "r") as fin:
+        
+        prefix = "auto" if self.conf["label_col"].startswith("auto") else "mesh"
+
+        with open(join(self.exp_fld, f"{prefix}_lab2index.json"), "r") as fin:
             self.label2index = json.load(fin)
         self.n_classes = len(self.label2index)
 
-        with open(join(self.exp_fld, "index2lab.json"), "r") as fin:
+        with open(join(self.exp_fld, f"{prefix}_index2lab.json"), "r") as fin:
             self.index2label = json.load(fin)
 
         # this new column hosts the encoding of the labels, ready for training
